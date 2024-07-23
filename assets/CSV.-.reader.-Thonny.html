@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sélecteur de dossier CSV et affichage des données</title>
+  <script src="js/papaparse.min.js"></script>
+  <style>
+	  body {
+	    background-image: url('https://media1.popsugar-assets.com/files/thumbor/HmmZE65uVOQlGlvXKgjuW7JyqNc=/fit-in/1584x1056/top/filters:format_auto():upscale()/2023/03/31/635/n/1922507/0ff296bdff33183c_tim-gouw-tseFnmif_MQ-unsplash.jpg');
+            background-size: cover;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            overflow-x: hidden;
+        }
+	
+    table {
+      width: 100%; /* Largeur fixe pour le tableau */
+      border-collapse: collapse; /* Supprimer les bordures entre les cellules */
+    }
+
+    th, td, tr {
+      border: 1px solid #ccc; /* Bordure pour chaque cellule */
+      padding: 5px; /* Espacement interne des cellules */
+      text-align: left; /* Alignement du texte à gauche */
+      word-break: break-all; /* Permet le retour à la ligne dans les cellules */
+      overflow: hidden!important; /* Masquer le contenu dépassant */
+      white-space: nowrap!important; /* Empêcher le texte de s'étendre sur plusieurs lignes */
+      max-width: 30px!important; /* Largeur fixe pour chaque cellule */
+      max-height: 25px!important; /* Hauteur fixe pour chaque cellule */
+    }
+	
+	
+
+  </style>
+
+</head>
+<body>
+  <h1>Sélectionnez un fichier CSV et affichez les données</h1>
+
+  <input type="file" id="monFichierCSV" accept=".csv">
+  <button id="boutonafficheentête" value="display">Afficher les entêtes</button>
+  <button class="bouton1" id="boutonplay" value="display">Afficher les données</button>
+  <button class="bouton1" id="boutoncopie" value="display">Copié les données</button>
+
+  <div class="display" id="liste-bouton-entête"></div>
+  <div class="display" id="resultat"></div>
+  </body>
+
+<script src="js/CSVreader.js"></script>
+  
+  
+  
+  
+  
+  </script>
+
+</html>

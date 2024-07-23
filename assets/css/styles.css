@@ -1,0 +1,57 @@
+.table-responsive {
+    display: block;
+    width: 100%;
+    height: calc(100vh - 170px);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+#csvFileInput {
+    width: auto;
+    flex-grow: 1;
+}
+
+#copyTable {
+    right: 5px;
+    margin-left: auto;
+}
+
+@media (min-width: 1200px) {
+  .container, .container-lg, .container-md, .container-sm, .container-xl {
+    max-width: calc(100% - 10px);
+  }
+}
+
+.inlinediv {
+    display: flex;
+}
+
+table {
+    width: 100%;
+    table-layout: fixed;
+}
+
+th,
+td {
+    white-space: nowrap;
+    overflow-y: auto;
+    /*text-overflow: ellipsis;*/
+}
+
+th {
+  vertical-align: bottom;
+  overflow: clip;
+}
+
+.sticky-header th {
+    position: sticky;
+    top: 0;
+    background-color: white;
+}
+
+.btn {
+  padding: 1px 3px;
+}
+#jumpToPage {
+  width: 70px;
+}
