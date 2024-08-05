@@ -1,0 +1,68 @@
+/* Style pour les tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 30px; /* Espacement entre les tables */
+    font-size: 12px;
+    background-color: white; /* Arrière-plan blanc pour les tables */
+}
+
+table caption {
+    background-color: black;
+    color: white;
+    font-weight: bold;
+    padding: 10px;
+    text-align: center;
+}
+
+table th, table td {
+    padding: 8px;
+    border: 1px solid #ddd;
+}
+
+table th {
+    background-color: black;
+    color: white;
+    font-weight: bold;
+}
+/* Aligner à droite pour les données des tables */
+table td {
+    text-align: right; /* Alignement du texte à droite dans les cellules */
+}
+
+table tr:nth-child(even) {
+    background-color: #f9f9f9; /* Couleur de fond alternée pour les lignes */
+}
+
+table tr:nth-child(odd) {
+    background-color: white;
+}
+
+table td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+
+/* Style pour les boutons */
+button, input[type="file"] {
+    background-color: #000; /* Fond noir */
+    color: #fff; /* Texte en blanc */
+    border: none; /* Enlever les bordures par défaut */
+    padding: 10px 15px; /* Ajouter du padding */
+    cursor: pointer; /* Changer le curseur au survol */
+    font-size: 0.875rem; /* Texte légèrement plus petit */
+}
+
+button:hover, input[type="file"]:hover {
+    background-color: #333; /* Changer la couleur de fond au survol */
+}
+
+/* Style spécifique pour la table resultstable */
+#resultstable td, #resultstable th {
+    overflow: hidden; /* Cacher le texte qui dépasse */
+    text-overflow: ellipsis; /* Ajouter des points de suspension pour le texte long */
+    white-space: nowrap; /* Empêcher le retour à la ligne */
+}
