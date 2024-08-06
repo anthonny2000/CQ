@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>TSV to JSON</title>
+    <script src="js/papaparse.mim.js"></script>
+    <style>
+        #P_attribut {
+            font-style: italic;
+        }
+    </style>
+	<link rel="stylesheet" href="styles.css"> <!-- Lien vers le fichier CSS -->
+</head>
+<body>
+	<h3 align:"center">CS/FURNITURE JSON REGENERATOR</h3>
+    <select id="templateSelector" onchange="updateAttributes()">
+        <option value="">Veuillez choisir un template...</option>
+        <option value="Furniture">Furniture</option>
+        <option value="CameraSearch">Camera Search</option>
+    </select>
+    <button onclick="openTSV()">Open TSV</button>
+    <input type="file" id="fileInput" style="display:none" accept=".tsv" onchange="loadTSV(event)">
+    <button onclick="exportToTSV()">Export to TSV</button>
+	<p id="X_attribut"></p>
+    <p id="P_attribut">Veuillez choisir un template...</p>
+    <table id="resultsTableJSON" border="1" onclick="copyTable()">
+        <caption id="tableCaption">OUTPUT TABLE</caption>
+        <thead id="tableHeader">
+            <!-- Headers will be added here dynamically -->
+        </thead>
+        <tbody id="tableBody">
+            <!-- Data will be added here dynamically -->
+        </tbody>
+    </table>
+    <script>
+        let keys = [];
+
+        function updateAttributes() {
+            const template = document.getElementById('templateSelector').value;
+            const paragraph = document.getElementById('P_attribut');
+			const paragraphx = document.getElementById('X_attribut');
+            if (template === "Furniture") {
+				//ICI ON LISTE LES CLE ATTRIBUT POUR LE TEMPLATE FURNITURE
+				
+                keys = ["asin_image_not_load","color","extra_features","location","material","no_difference","pattern","shape","size","support_type","Design","surface_placement","wrong_age_group","wrong_category"];
+                paragraph.textContent = "asin_image_not_load,color,extra_features,location,material,no_difference,pattern,shape,size,support_type,design,surface_placement,wrong_age_group,wrong_category";
+				paragraphx.innerHTML = "<strong>FURNITURE</strong>";
+            } else if (template === "CameraSearch") {
+				//ICI ON LISTE LES CLE ATTRIBUT POUR LE TEMPLATE CAMERA SEARCH
+                keys = ["asin_image_not_load", "has_product_difference", "is_non_targeted_match", "is_wrong_bundle", "is_wrong_characteristic", "is_wrong_packaging_overlay", "is_wrong_size_or_count", "no_difference", "wrong_category"];
+                paragraph.textContent = "asin_image_not_load, has_product_difference, is_non_targeted_match, is_wrong_bundle, is_wrong_characteristic, is_wrong_packaging_overlay, is_wrong_size_or_count, no_difference, wrong_category";
+                paragraphx.innerHTML = "<strong>CAMERA SEARCH</strong>";
+            } else {
+                keys = [];
+                paragraph.textContent = "Veuillez choisir un template...";
+				paragraphx.textContent = "...";
+            }
+        }
+
+        function openTSV() {
+            if (keys.length === 0) {
+                alert("Veuillez choisir un template avant de charger le fichier TSV.");
+                return;
+            }
+            document.getElementById('fileInput').click();
+        }
+
+        function loadTSV(event) {
+            const file = event.target.files[0];
+            if (file) {
+                Papa.parse(file, {
+					header: true,
+					delimiter: '\t', // Délimiteur de tabulation
+					skipEmptyLines: true, // Ignore les lignes vides
+					preview: 500000, // Augmentez le nombre de lignes prévisualisées si nécessaire
+                    complete: function(results) {
+                        processTSV(results.data);
+                    },
+                    error: function(error) {
+                        alert("Error loading TSV file: " + error.message);
+                    }
+                });
+            }
+        }
+
+        function processTSV(data) {
+            const tableHeader = document.getElementById('tableHeader');
+            const tableBody = document.getElementById('tableBody');
+            tableHeader.innerHTML = "";
+            tableBody.innerHTML = "";
+
+            if (!data[0].hasOwnProperty('assin_json') || !data[0].hasOwnProperty('assin_juge_json')) {
+                alert('Les colonnes "assin_json" et/ou "assin_juge_json" sont manquantes.');
+                return;
+            }
+
+            // Create table headers
+            const headers = Object.keys(data[0]);
+            const headerRow = document.createElement('tr');
+            headers.forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                headerRow.appendChild(th);
+            });
+            tableHeader.appendChild(headerRow);
+
+            // Process each row
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+
+                headers.forEach(header => {
+                    const td = document.createElement('td');
+
+                    if (header === 'assin_json' || header === 'assin_juge_json') {
+                        const jsonResult = {};
+                        keys.forEach(key => {
+                            jsonResult[key] = row[header].split(',').includes(key);
+                        });
+                        td.textContent = JSON.stringify(jsonResult);
+                    } else {
+                        td.textContent = row[header];
+                    }
+
+                    tr.appendChild(td);
+                });
+
+                tableBody.appendChild(tr);
+            });
+        }
+
+        function copyTable() {
+            const table = document.getElementById('resultsTableJSON');
+            const temp = document.createElement('div');
+            temp.appendChild(table.cloneNode(true));
+            document.body.appendChild(temp);
+            const range = document.createRange();
+            range.selectNode(temp);
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(range);
+            document.execCommand('copy');
+            window.getSelection().removeAllRanges();
+            document.body.removeChild(temp);
+            alert('Table copied to clipboard');
+        }
+
+        function exportToTSV() {
+            const table = document.getElementById('resultsTableJSON');
+            let tsv = [];
+            const rows = table.querySelectorAll('tr');
+            rows.forEach(row => {
+                const cols = row.querySelectorAll('td, th');
+                const rowData = [];
+                cols.forEach(col => rowData.push(col.textContent));
+                tsv.push(rowData.join('\t'));
+            });
+            const tsvFile = new Blob([tsv.join('\n')], { type: 'text/tab-separated-values' });
+            const downloadLink = document.createElement('a');
+            downloadLink.download = 'results.tsv';
+            downloadLink.href = URL.createObjectURL(tsvFile);
+            downloadLink.click();
+        }
+		//copie appartir de clique sur souris sur le tableau
+function copyTableToClipboard(table) {
+            // Utilisation de l'API Clipboard
+            navigator.clipboard.writeText(table.innerText).catch(err => {
+                // En cas d'échec, il n'y a pas de message
+            });
+        }
+        document.querySelectorAll('.main-content table').forEach(table => {
+            table.addEventListener('click', () => copyTableToClipboard(table));
+        });
+    </script>
+</body>
+</html>
