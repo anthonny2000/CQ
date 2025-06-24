@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Extractor</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 30px;
+            background-color: #f4f7fa;
+            color: #2c3e50;
+        }
+        h1 {
+            color: #1a1a1a;
+        }
+        input[type="file"] {
+            margin: 10px 0;
+            padding: 10px;
+            font-size: 16px;
+            font-family: inherit;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #outputTable {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background-color: white;
+            box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
+        }
+        #outputTable th, #outputTable td {
+            border: 1px solid #dcdcdc;
+            padding: 10px;
+            text-align: left;
+        }
+        #outputTable th {
+            background-color: #ddeaf6;
+        }
+        #status {
+            margin-top: 15px;
+            font-weight: bold;
+            font-size: 16px;
+            background: #e3f2fd;
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        tr:hover {
+            background-color: #f0f4f8;
+        }
+    </style>
+</head>
+<body>
+    <h1>Upload CSV or TSV Files</h1>
+    <input type="file" id="fileInput" accept=".csv,.tsv" multiple>
+    <p id="status">JSON Processed: <span id="jsonCount">0</span> / <span id="totalLines">0</span></p>
+    <table id="outputTable">
+        <thead>
+            <tr>
+                <th>Source</th>
+                <th>HITId</th>
+                <th>WorkerId</th>
+                <th>ASIN</th>
+                <th>Answers</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        let allFileData = [];
+        let jsonCount = 0;
+        let totalLines = 0;
+        let fullResults = '';
+
+        const waitForNextFrame = () => new Promise(resolve => {
+            if (window.requestIdleCallback) {
+                requestIdleCallback(resolve);
+            } else {
+                setTimeout(resolve, 10);
+            }
+        });
+
+        $('#fileInput').on('change', async function(event) {
+            allFileData = [];
+            jsonCount = 0;
+            totalLines = 0;
+            fullResults = '';
+            updateJsonCount();
+
+            const files = event.target.files;
+            if (files.length === 0) {
+                alert('Please select files.');
+                return;
+            }
+
+            let filesProcessed = 0;
+            for (const file of files) {
+                const fileName = file.name;
+                const fileExtension = file.name.split('.').pop().toLowerCase();
+                const delimiter = fileExtension === 'tsv' ? '\t' : ',';
+
+                const content = await new Promise((resolve, reject) => {
+                    Papa.parse(file, {
+                        header: true,
+                        delimiter: delimiter,
+                        skipEmptyLines: true,
+                        complete: results => resolve(results.data),
+                        error: reject
+                    });
+                });
+
+                totalLines += content.length;
+                await processData(content, fileName);
+                filesProcessed++;
+            }
+
+            displayResults();
+        });
+
+        async function processData(data, fileName) {
+            let processed = 0;
+            const batchSize = 83;
+
+            for (let i = 0; i < data.length; i++) {
+                const row = data[i];
+                const hitId = row['HITId'];
+                const workerId = row['WorkerId'];
+                const answerData = row['Answer.output_data'];
+
+                if (hitId && workerId && answerData) {
+                    try {
+                        const parsedJson = JSON.parse(answerData);
+                        for (const [asin, value] of Object.entries(parsedJson)) {
+                            const trueAttributes = Object.entries(value)
+                                .filter(([_, val]) => val === true)
+                                .map(([key]) => key);
+
+                            if (trueAttributes.length > 0) {
+                                const resultRow = {
+                                    Source: fileName,
+                                    HITId: hitId,
+                                    WorkerId: workerId,
+                                    ASIN: asin,
+                                    Answers: trueAttributes.join(' | ')
+                                };
+                                allFileData.push(resultRow);
+                                fullResults += Object.values(resultRow).join('\t') + '\n';
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Error parsing JSON in row:', e);
+                    }
+                }
+
+                jsonCount++;
+                processed++;
+
+                if (processed % batchSize === 0 || i === data.length - 1) {
+                    updateJsonCount();
+                    await waitForNextFrame();
+                }
+            }
+        }
+
+        function displayResults() {
+            const tableBody = $('#outputTable tbody');
+            tableBody.empty();
+
+            allFileData.sort((a, b) => a.HITId.localeCompare(b.HITId));
+
+            allFileData.slice(0, 100).forEach(row => {
+                const newRow = `<tr>
+                    <td>${row.Source}</td>
+                    <td>${row.HITId}</td>
+                    <td>${row.WorkerId}</td>
+                    <td>${row.ASIN}</td>
+                    <td>${row.Answers}</td>
+                </tr>`;
+                tableBody.append(newRow);
+            });
+        }
+
+        function updateJsonCount() {
+            $('#jsonCount').text(jsonCount);
+            $('#totalLines').text(totalLines);
+        }
+
+        $('#outputTable').on('click', function () {
+            if (!fullResults) {
+                alert('No results to copy.');
+                return;
+            }
+            navigator.clipboard.writeText(fullResults)
+                .then(() => alert('Full results copied to clipboard!'))
+                .catch(err => console.error('Error copying results:', err));
+        });
+    </script>
+</body>
+</html>

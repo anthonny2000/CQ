@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Analyse HIT CSV/TSV</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+  <style>
+    <style>
+  <style>
+    body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        font-size: 15.6px;
+        background: linear-gradient(to bottom, #f4f4f9, #e9ecf3);
+        margin: 0;
+        padding: 0 10px 50px;
+    }
+
+    h1 {
+        text-align: center;
+        margin: 30px 0 10px;
+        color: #2c3e50;
+        font-size: 28px;
+        text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.05);
+    }
+
+    .buttons-container {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+
+    input[type="file"], input[type="text"], button {
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        padding: 10px;
+        font-size: 15px;
+    }
+
+    #source {
+        border: 1px solid #007BFF;
+    }
+
+    input[type="text"] {
+        width: 250px;
+    }
+
+    button {
+        background-color: #007BFF;
+        color: white;
+        border: none;
+        font-weight: bold;
+        transition: background-color 0.2s ease;
+    }
+
+    button:hover {
+        background-color: #0056B3;
+    }
+
+    #dash {
+        font-size: 18px;
+        font-weight: bold;
+        color: #007BFF;
+        margin: auto 10px;
+    }
+
+    #resultat {
+        margin: 30px auto;
+        overflow-x: auto;
+        max-height: 750px;
+        text-align: center;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0 auto;
+        background-color: #fff;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.07);
+        overflow: hidden;
+    }
+
+    th, td {
+        padding: 8px 15px;
+        text-align: center;
+        border: 1px solid #ddd;
+    }
+
+    th {
+        background-color: #007BFF;
+        color: white;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+
+    td {
+        background-color: #fdfdfd;
+    }
+
+    tr:nth-child(even) td {
+        background-color: #f3f6fa;
+    }
+
+    tr:last-child {
+        font-weight: bold;
+        background-color: #e6f0ff;
+    }
+
+    #commande {
+        height: 30px;
+        border: black 1px;
+    }
+
+    @media (max-width: 600px) {
+        input[type="text"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+
+        .buttons-container {
+            flex-direction: column;
+            align-items: center;
+        }
+    }
+</style>
+
+
+</head>
+<body>
+  <h2>Analyse des fichiers HIT (CSV / TSV)</h2>
+  <input type="file" id="fileInput" multiple>
+  <div id="progress"></div>
+  <div id="lineProgress"></div>
+  <button id="playBtn" style="display:none;">PLAY</button>
+  <div id="result" style="margin-top:20px;"></div>
+
+  <script>
+    let allResults = [];
+    let filesToProcess = 0;
+    let processedCount = 0;
+	let totalLignes = 0;
+	let lignesTraitees = 0;
+
+
+    function secondsToHHMMSS(seconds) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = Math.round(seconds % 60);
+      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function parseData(data, filename) {
+      const byDate = {};
+      data.forEach(row => {
+        const time = parseFloat(row["worktime"]);
+        const submitTime = row["SubmitTime"] ? row["SubmitTime"].split("T")[0] : null;
+        const assignmentId = row["AssignmentId"];
+        const hitId = row["HITId"];
+        let asinCount = 0;
+
+        if (!submitTime) return;
+
+        try {
+          const outputData = JSON.parse(row["Answer.output_data"]);
+          asinCount = Object.keys(outputData).length;
+        } catch (e) {
+          asinCount = 0;
+        }
+
+        if (!byDate[submitTime]) {
+          byDate[submitTime] = {
+            totalTime: 0,
+            assignments: new Set(),
+            hits: new Set(),
+            asinCounts: [],
+            totalASINs: 0
+          };
+        }
+
+        const dateData = byDate[submitTime];
+        dateData.totalTime += isNaN(time) ? 0 : time;
+        if (assignmentId) dateData.assignments.add(assignmentId);
+        if (hitId) dateData.hits.add(hitId);
+        dateData.asinCounts.push(asinCount);
+        dateData.totalASINs += asinCount;
+      });
+
+      const rows = [];
+      for (const [date, d] of Object.entries(byDate)) {
+        const TT = d.totalTime;
+        const nbAssign = d.assignments.size;
+        const nbHit = d.hits.size;
+        const DMT = nbAssign > 0 ? TT / nbAssign : 0;
+        const minASIN = d.asinCounts.length ? Math.min(...d.asinCounts) : 0;
+        const maxASIN = d.asinCounts.length ? Math.max(...d.asinCounts) : 0;
+        const totalASIN = d.totalASINs;
+
+        rows.push({
+          Source: filename,
+          TT: secondsToHHMMSS(TT),
+          DMT: secondsToHHMMSS(DMT),
+          NbAssign: nbAssign,
+          NbHIT: nbHit,
+          MinASIN: minASIN,
+          MaxASIN: maxASIN,
+          TotalASIN: totalASIN,
+          Date: date
+        });
+      }
+
+      return rows;
+    }
+
+    function updateProgress() {
+      $('#progress').text(`${processedCount} / ${filesToProcess} fichiers traités`);
+    }
+
+    function displayResult(allResults) {
+      const table = $('<table><thead><tr><th>Source</th><th>TT</th><th>DMT moyenne</th><th>Nb assign</th><th>Nb HITId</th><th>Min ASINs</th><th>Max ASINs</th><th>Total ASINs</th><th>DATE</th></tr></thead><tbody></tbody></table>');
+      const tbody = table.find("tbody");
+
+      let totalTimeSec = 0;
+      let totalAssign = 0;
+      let totalHITs = 0;
+      let totalASIN = 0;
+      let allMin = [];
+      let allMax = [];
+
+      allResults.forEach(row => {
+        const ttSeconds = row.TT.split(':').reduce((acc, val, i) => acc + parseInt(val) * [3600, 60, 1][i], 0);
+        const dmtSeconds = row.DMT.split(':').reduce((acc, val, i) => acc + parseInt(val) * [3600, 60, 1][i], 0);
+
+        totalTimeSec += ttSeconds;
+        totalAssign += row.NbAssign;
+        totalHITs += row.NbHIT;
+        totalASIN += row.TotalASIN;
+        allMin.push(row.MinASIN);
+        allMax.push(row.MaxASIN);
+
+        tbody.append(`<tr>
+          <td>${row.Source}</td>
+          <td>${row.TT}</td>
+          <td>${row.DMT}</td>
+          <td>${row.NbAssign}</td>
+          <td>${row.NbHIT}</td>
+          <td>${row.MinASIN}</td>
+          <td>${row.MaxASIN}</td>
+          <td>${row.TotalASIN}</td>
+          <td>${row.Date}</td>
+        </tr>`);
+      });
+
+      const DMTmean = totalAssign > 0 ? totalTimeSec / totalAssign : 0;
+      const minOfMin = allMin.length ? Math.min(...allMin) : 0;
+      const maxOfMax = allMax.length ? Math.max(...allMax) : 0;
+
+      tbody.append(`<tr style="font-weight:bold; background:#e0e0e0;">
+        <td>Total</td>
+        <td>${secondsToHHMMSS(totalTimeSec)}</td>
+        <td>${secondsToHHMMSS(DMTmean)}</td>
+        <td>${totalAssign}</td>
+        <td>${totalHITs}</td>
+        <td>${minOfMin}</td>
+        <td>${maxOfMax}</td>
+        <td>${totalASIN}</td>
+        <td>-</td>
+      </tr>`);
+
+      $('#result').html(table);
+    }
+
+    // Copier au clic (sans l'entête ni la dernière ligne)
+    $(document).on('click', '#result table', function () {
+      const rows = $(this).find('tbody tr');
+      if (rows.length < 2) return;
+
+      const lines = [];
+      rows.slice(0, -1).each(function () {
+        const cells = $(this).find('td').map(function () {
+          return $(this).text();
+        }).get();
+        lines.push(cells.join('\t'));
+      });
+
+      const textToCopy = lines.join('\n');
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        alert("Tableau copié (sans entête ni total).");
+      });
+    });
+
+    $('#fileInput').on('change', function (e) {
+      const files = e.target.files;
+      allResults = [];
+      processedCount = 0;
+      filesToProcess = files.length;
+
+      updateProgress();
+      $('#result').empty();
+      $('#playBtn').hide();
+
+      Array.from(files).forEach(file => {
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: function (results) {
+            const processed = parseData(results.data, file.name);
+            allResults.push(...processed);
+            processedCount++;
+            updateProgress();
+            if (processedCount === filesToProcess) {
+              $('#playBtn').show();
+            }
+          }
+        });
+      });
+    });
+
+    $('#playBtn').on('click', function () {
+      displayResult(allResults);
+    });
+  </script>
+
+</body>
+</html>
