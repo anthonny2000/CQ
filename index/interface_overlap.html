@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>TaskID Viewer (Source vs Target)</title>
+
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <link rel="stylesheet" href="styles3source.css">
+  <style>
+    /* Tes styles originaux conservés */
+    #sourceUBIsearch { background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); color: #92fe9d; padding: 5px; border-radius: 4px; width: 150px; height: 25px; transition: all 0.3s ease; font-family: monospace; font-size: 11px; resize: none; vertical-align: middle; overflow: hidden; display: block; margin-top: 2px; }
+    #sourceUBIsearch:focus { height: 150px; width: 250px; background: #0f172a; overflow-y: auto; }
+    #ubiHelper { background: rgba(255, 255, 255, 0.1); border: 1px solid #00d2ff; color: white; font-size: 10px; border-radius: 4px; width: 150px; padding: 2px 5px; }
+    #taskProgress { background: rgba(146, 254, 157, 0.1); border: 1px solid #92fe9d; color: #92fe9d; padding: 2px 8px; border-radius: 20px; font-weight: bold; font-size: 12px; margin-left: 10px; }
+    #historyModal { display: none; position: fixed; top: 70px; right: 20px; background: rgba(15, 23, 42, 0.95); border: 1px solid #00d2ff; padding: 15px; border-radius: 8px; z-index: 10000; max-height: 400px; overflow-y: auto; box-shadow: 0 0 20px rgba(0,0,0,0.8); color: white; }
+    #historyTable { width: 100%; border-collapse: collapse; font-size: 12px; }
+    #historyTable th { border-bottom: 1px solid #00d2ff; padding: 5px; color: #00d2ff; }
+    #historyTable td { padding: 5px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+  </style>
+</head>
+
+<body>
+
+<div class="controls">
+  <input type="file" id="fileInput" accept=".tsv,.csv,.xlsx,.xls,.txt" />
+
+  <div style="display: inline-block; vertical-align: middle;">
+    <input type="text" id="ubiHelper" list="ubiSuggestions" placeholder="🔍 Suggestion TaskID...">
+    <datalist id="ubiSuggestions"></datalist>
+    <textarea id="sourceUBIsearch" placeholder="Queue list (TaskIDs)..."></textarea>
+  </div>
+
+  <button id="playBtn">▶</button>
+  <button id="prevBtn">⬅ Précédent</button>
+  <button id="nextBtn">➡ Suivant</button>
+
+  <div class="stats-group" style="display: inline-flex; align-items: center;">
+    <span id="counter" title="Position">0 / 0</span>
+    <span id="taskProgress" title="Status">0 / 1</span>
+    <span id="targetCounter" title="Total validé" style="color: #92fe9d; font-weight: bold; margin-left: 10px;">Total: 0</span>
+  </div>
+  <button id="historyBtn">📋 Logs</button>
+</div>
+
+<div id="viewer"></div>
+
+<div id="historyModal">
+    <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+        <strong>PROCESSED TASKS</strong>
+        <button id="closeHistory" style="cursor:pointer;">X</button>
+    </div>
+    <table id="historyTable">
+        <thead><tr><th>TaskID</th><th>Result</th></tr></thead>
+        <tbody id="historyBody"></tbody>
+    </table>
+</div>
+
+<script>
+let flatData = []; 
+let currentIndex = 0;
+let qaResults = JSON.parse(localStorage.getItem("qaResults_task") || "[]");
+let totalProcessed = parseInt(localStorage.getItem("totalProcessed_task") || "0");
+let historyData = JSON.parse(localStorage.getItem("history_task") || "[]");
+
+$(document).ready(function() {
+    $("#targetCounter").text(`Total: ${totalProcessed}`);
+    updateHistoryUI();
+});
+
+/* --- HELPERS --- */
+function isURL(str) { return /^https?:\/\//.test(str); }
+function truncate(text, max = 60) { return (!text || text.length <= max) ? text : text.substring(0, max) + "..."; }
+function encodeAttr(value) { return encodeURIComponent(value || ""); }
+function decodeAttr(value) { return decodeURIComponent(value || ""); }
+
+function singleLine(value) {
+    if (!value) return `<div class="line">&nbsp;</div>`;
+    if (isURL(value)) return `<div class="line"><a href="${value}" target="_blank">${truncate(value)}</a></div>`;
+    return `<div class="line">${truncate(value)}</div>`;
+}
+
+function splitLines(value, maxLines) {
+    let arr = (value || '').toString().split(',').map(v => v.trim());
+    let html = '';
+    for (let i = 0; i < maxLines; i++) {
+        let v = arr[i] || "";
+        if (!v) html += `<div class="line">&nbsp;</div>`;
+        else if (isURL(v)) html += `<div class="line"><a href="${v}" target="_blank">${truncate(v)}</a></div>`;
+        else html += `<div class="line">${truncate(v)}</div>`;
+    }
+    return html;
+}
+
+const block = (title, linesHtml) => `<div class="block" data-type="${title}"><div class="block-title">${title}</div>${linesHtml}</div>`;
+const section = (title, content) => `<div class="section-block"><div class="section-header">${title}</div>${content}</div>`;
+
+/* --- BUILD CARDS --- */
+/* --- BUILD CARDS --- */
+function buildDataCard(obj, prefix) {
+    let html = `<div class='card bottom'><strong>${prefix.toUpperCase()} DATA</strong>`;
+    
+    // 1. Section Trademark
+    let trademark = "";
+    for (let i = 1; i <= 5; i++) {
+        trademark += block(`TM${i}_Num`, singleLine(obj[`${prefix}Trademark${i}RegistrationNumber`]));
+        trademark += block(`TM${i}_Office`, singleLine(obj[`${prefix}Trademark${i}Office`]));
+    }
+    html += section("Trademark", trademark);
+
+    // 2. Section BrandRepresentation (Ajout des Product URLs)
+    let brand = "";
+    for (let i = 1; i <= 5; i++) {
+        brand += block(`Brand${i}_Name`, singleLine(obj[`${prefix}BrandRepresentation${i}Name`]));
+        brand += block(`Brand${i}_Locale`, singleLine(obj[`${prefix}BrandRepresentation${i}Locale`]));
+        brand += block(`Brand${i}_Web`, splitLines(obj[`${prefix}BrandRepresentation${i}WebsiteURLs`], 3));
+        brand += block(`Brand${i}_Prod`, splitLines(obj[`${prefix}BrandRepresentation${i}ProductURLs`], 3)); // Ajout ici
+    }
+    html += section("BrandRepresentation", brand);
+
+    // 3. Section TruthSet (Ajout de TruthP2)
+    let truth = "";
+    truth += block("TruthTM", splitLines(obj[`${prefix}TruthSetTrademark`], 2));
+    truth += block("TruthWeb", splitLines(obj[`${prefix}TruthSetWebsite`], 2));
+    truth += block("TruthP1", splitLines(obj[`${prefix}TruthSetProduct1`], 2));
+    truth += block("TruthP2", splitLines(obj[`${prefix}TruthSetProduct2`], 2)); // Ajout ici
+    html += section("TruthSet", truth);
+
+    // 4. Bloc de décision QA (Uniquement pour le côté Target / Droite)
+    if(prefix === "target") {
+        html += block("Answer_IsDupe", `<div class="line">${obj.Answer_IsDupe || ""}</div>`);
+        html += block("Answer_Reason", `<div class="line">${obj.Answer_Reason || ""}</div>`);
+        html += `
+        <div class="block qa-block">
+            <input type="checkbox" class="qa-check" data-dupe="${encodeAttr(obj.Answer_IsDupe)}" data-reason="${encodeAttr(obj.Answer_Reason)}">
+            <input class="block-title qa-title" value="Answer_IsDupe">
+            <input class="line qa-input-dupe" placeholder="IsDupe...">
+        </div>
+        <div class="block qa-block">
+            <input class="block-title qa-title" value="Answer_Reason">
+            <input class="line qa-input-reason" placeholder="Reason...">
+        </div>`;
+    }
+    html += `</div>`;
+    return html;
+}
+
+
+
+function render() {
+    const container = $("#viewer").empty();
+    if (!flatData.length) return;
+
+    const row = flatData[currentIndex];
+    const topRow = $("<div class='top-row' style='grid-template-columns: 1fr 1fr'></div>");
+    const bottomRow = $("<div class='bottom-row' style='grid-template-columns: 1fr 1fr'></div>");
+
+    topRow.append(`<div class='card'><strong>SOURCE</strong><div class='line'>${truncate(row.sourceName)}</div><div class='line'>${row.sourceUBI}</div></div>`);
+    topRow.append(`<div class='card'><strong>TARGET</strong><div class='line'>${truncate(row.targetName)}</div><div class='line'>${row.targetUBI}</div><div class='line' style='color:#00d2ff'>${row.TaskID}</div></div>`);
+
+    bottomRow.append(buildDataCard(row, "source"));
+    bottomRow.append(buildDataCard(row, "target"));
+
+    container.append("<div class='section-title'>TOP</div>").append(topRow).append("<div class='section-title'>BOTTOM</div>").append(bottomRow);
+    
+    $("#counter").text(`${currentIndex+1} / ${flatData.length}`);
+    hideEmptyRowsAcrossCards();
+    applyHighlight();
+	updateTaskCounter();
+	applyStatusColors();
+	applySourceTargetGlow();
+
+
+}
+
+/* --- LOGIQUE PLAY & SUGGESTIONS --- */
+$("#ubiHelper").on("change", function() {
+    const val = $(this).val().trim();
+    if (!val) return;
+    const textarea = $("#sourceUBIsearch");
+    textarea.val(textarea.val() ? textarea.val() + "\n" + val : val);
+    $(this).val(""); textarea.focus();
+});
+
+$("#playBtn").click(function() {
+    const lines = $("#sourceUBIsearch").val().split('\n').map(l => l.trim()).filter(l => l);
+    if (!lines.length) return alert("⚠️ File d'attente vide");
+    const idx = flatData.findIndex(item => item.TaskID && item.TaskID.toString() === lines[0]);
+    if (idx !== -1) { currentIndex = idx; render(); }
+    else { alert("⚠️ TaskID non trouvé"); }
+});
+
+/* --- FILE LOADING --- */
+$("#fileInput").on("change", function() {
+    const file = this.files[0];
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        let json = [];
+        if (file.name.match(/\.xls.?$/)) {
+            const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+            json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+        } else {
+            json = Papa.parse(e.target.result, { header: true, skipEmptyLines: true }).data;
+        }
+        flatData = json.filter(r => r.TaskID);
+        currentIndex = 0; render();
+        const dl = $("#ubiSuggestions").empty();
+        flatData.forEach(r => dl.append(`<option value="${r.TaskID}">`));
+    };
+    file.name.match(/\.xls.?$/) ? reader.readAsArrayBuffer(file) : reader.readAsText(file);
+});
+
+/* --- SUBMIT & SAVE --- */
+$(document).on("click", "#submitBtn", function() {
+    const row = flatData[currentIndex];
+    const dupe = $(".qa-input-dupe").val()?.trim();
+    const reason = $(".qa-input-reason").val()?.trim();
+    if (!dupe || !reason) return alert("⚠️ Remplir IsDupe et Reason !");
+
+    const result = [row.sourceUBI, row.targetUBI, row.TaskID, row.Answer_IsDupe, row.Answer_Reason, dupe, reason].join("\t");
+    qaResults.push(result);
+    localStorage.setItem("qaResults_task", JSON.stringify(qaResults));
+    copyToClipboard(result);
+
+    totalProcessed++;
+    localStorage.setItem("totalProcessed_task", totalProcessed);
+    $("#targetCounter").text(`Total: ${totalProcessed}`);
+
+    historyData.push({ id: row.TaskID, res: dupe });
+    localStorage.setItem("history_task", JSON.stringify(historyData));
+    updateHistoryUI();
+
+    let lines = $("#sourceUBIsearch").val().split('\n').map(l => l.trim()).filter(l => l);
+    if (lines.length > 0 && lines[0] === row.TaskID.toString()) {
+        lines.shift();
+        $("#sourceUBIsearch").val(lines.join('\n'));
+        if (lines.length > 0) {
+            const nextIdx = flatData.findIndex(item => item.TaskID.toString() === lines[0]);
+            if (nextIdx !== -1) { currentIndex = nextIdx; render(); return; }
+        }
+    }
+
+    if (currentIndex < flatData.length - 1) { currentIndex++; render(); }
+});
+
+/* =========================================
+   NOUVEAU : RACCOURCIS CLAVIER (TAB & SUBMIT)
+   ========================================= */
+$(document).on('keydown', function(e) {
+    // 1. Navigation TAB entre les inputs QA
+    if (e.key === 'Tab') {
+        const focusable = $('.qa-check, .qa-input-dupe, .qa-input-reason').filter(':visible');
+        if (focusable.length > 0) {
+            const index = focusable.index(document.activeElement);
+            let nextIndex;
+            if (e.shiftKey) {
+                nextIndex = index > 0 ? index - 1 : focusable.length - 1;
+            } else {
+                nextIndex = index < focusable.length - 1 ? index + 1 : 0;
+            }
+            e.preventDefault();
+            focusable.eq(nextIndex).focus();
+        }
+    }
+
+    // 2. Ctrl + Enter pour SUBMIT
+    if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        $("#submitBtn").click();
+    }
+});
+
+/* --- AUTRES UTILS --- */
+function updateTaskCounter() {
+    const done = ($(".qa-input-dupe").val() && $(".qa-input-reason").val()) ? 1 : 0;
+    $("#taskProgress").text(`${done} / 1`).css("background", done ? "rgba(146,254,157,0.4)" : "rgba(146,254,157,0.1)");
+}
+
+function updateHistoryUI() {
+    const b = $("#historyBody").empty();
+    historyData.slice().reverse().forEach(h => b.append(`<tr><td>${h.id}</td><td>${h.res}</td></tr>`));
+}
+
+function hideEmptyRowsAcrossCards() {
+    const cards = $("#viewer .bottom-row > .card");
+    let max = 0;
+    cards.each(function() { max = Math.max(max, $(this).find(".line").length); });
+    for (let i = 0; i < max; i++) {
+        let empty = true;
+        cards.each(function() {
+            const l = $(this).find(".line").eq(i);
+            if (l.hasClass("qa-input-dupe") || l.hasClass("qa-input-reason") || l.text().trim() !== "" || l.find('a').length > 0) { empty = false; return false; }
+        });
+        if (empty) cards.each(function() { $(this).find(".line").eq(i).hide(); });
+    }
+}
+
+function applyHighlight() {
+    $("#viewer .bottom-row .line").each(function() {
+        const t = $(this).text().toLowerCase();
+        if (t.includes("source")) $(this).css({"color": "#ad22c5", "font-weight": "bold"});
+        else if (t.includes("target")) $(this).css({"color": "#ff0044", "font-weight": "bold"});
+    });
+}
+
+function copyToClipboard(t) { const el = document.createElement("textarea"); el.value = t; document.body.appendChild(el); el.select(); document.execCommand("copy"); el.remove(); }
+
+$("#prevBtn").click(function() {
+    const lines = $("#sourceUBIsearch").val().split('\n').map(l => l.trim()).filter(l => l);
+    if (lines.length > 0) {
+        const currentID = flatData[currentIndex].TaskID.toString();
+        const listIdx = lines.indexOf(currentID);
+        if (listIdx > 0) {
+            const prevIdx = flatData.findIndex(item => item.TaskID.toString() === lines[listIdx - 1]);
+            if (prevIdx !== -1) { currentIndex = prevIdx; render(); }
+        }
+    } else if (currentIndex > 0) { 
+        currentIndex--; render(); 
+    }
+});
+
+$("#nextBtn").click(function() {
+    const lines = $("#sourceUBIsearch").val().split('\n').map(l => l.trim()).filter(l => l);
+    if (lines.length > 0) {
+        const currentID = flatData[currentIndex].TaskID.toString();
+        const listIdx = lines.indexOf(currentID);
+        if (listIdx !== -1 && listIdx < lines.length - 1) {
+            const nextIdx = flatData.findIndex(item => item.TaskID.toString() === lines[listIdx + 1]);
+            if (nextIdx !== -1) { currentIndex = nextIdx; render(); }
+        }
+    } else if (currentIndex < flatData.length - 1) { 
+        currentIndex++; render(); 
+    }
+});
+
+
+
+$("#historyBtn").click(() => $("#historyModal").toggle());
+$("#closeHistory").click(() => $("#historyModal").hide());
+
+$(document).on("change", ".qa-check", function() {
+    if ($(this).is(":checked")) {
+        $(".qa-input-dupe").val(decodeAttr($(this).attr("data-dupe")));
+        $(".qa-input-reason").val(decodeAttr($(this).attr("data-reason")));
+    } else { $(".qa-input-dupe").val(""); $(".qa-input-reason").val(""); }
+    updateTaskCounter();
+});
+
+$(document).on("click", "#resetBtn", () => { if(confirm("Reset ?")) { localStorage.clear(); location.reload(); }});
+$(document).on("click", "#exportBtn", () => {
+    const blob = new Blob([qaResults.join("\n")], { type: "text/tab-separated-values" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "qa_tasks.tsv"; a.click();
+});
+
+$(document).on("click", "#copyBtn", function() {
+    // Récupère les résultats stockés dans le localStorage
+    const data = JSON.parse(localStorage.getItem("qaResults_task") || "[]");
+    if (data.length > 0) {
+        copyToClipboard(data.join("\n"));
+        alert("📋 TSV copié dans le presse-papier ! (" + data.length + " lignes)");
+    } else {
+        alert("⚠️ Aucun résultat à copier.");
+    }
+});
+
+
+/* couleur de bordures spécifiques */
+function applyStatusColors() {
+    const targetElement = $("#viewer > div.bottom-row > div > div:nth-child(5) > div.line");
+    
+    targetElement.each(function() {
+        const text = $(this).text().trim();
+        
+        // On retire les anciennes classes au cas où
+        $(this).removeClass("border-marron border-marine border-violet");
+
+        if (text.includes("COULD_NOT_CONCLUDE")) {
+            $(this).addClass("border-marron");
+        } else if (text.includes("DUPLICATE")) {
+            $(this).addClass("border-marine");
+        } else if (text.includes("UNIQUE")) {
+            $(this).addClass("border-violet");
+        }
+    });
+}
+
+//10/04/2026 - 08:52:00 _ 
+function applySourceTargetGlow() {
+    const lines = $("#viewer > div.bottom-row > div > div:nth-child(6) > div.line");
+    lines.each(function() {
+        const content = $(this).text().toLowerCase();
+        $(this).removeClass("glow-source glow-target");
+        if (content.includes('source')) $(this).addClass("glow-source");
+        else if (content.includes('target')) $(this).addClass("glow-target");
+    });
+}
+
+
+</script>
+
+<div id="floatingPanel">
+  <button id="submitBtn">Submit Task</button>
+  <button id="exportBtn">Export TSV</button>
+  <button id="copyBtn">Copy TSV</button>
+  <button id="resetBtn">RESET</button>
+</div>
+
+</body>
+</html>

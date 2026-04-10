@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Target vs Source Viewer (Mode Inversé)</title>
+
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <link rel="stylesheet" href="styles3target.css">
+  <style>
+    /* Intégration du style spécifique aux nouveaux contrôles */
+    #sourceUBIsearch { background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); color: #92fe9d; padding: 5px; border-radius: 4px; width: 150px; height: 25px; transition: all 0.3s ease; font-family: monospace; font-size: 11px; resize: none; vertical-align: middle; overflow: hidden; display: block; margin-top: 2px; }
+    #sourceUBIsearch:focus { height: 150px; width: 250px; background: #0f172a; overflow-y: auto; }
+    #ubiHelper { background: rgba(255, 255, 255, 0.1); border: 1px solid #00d2ff; color: white; font-size: 10px; border-radius: 4px; width: 150px; padding: 2px 5px; }
+    #taskProgress { background: rgba(146, 254, 157, 0.1); border: 1px solid #92fe9d; color: #92fe9d; padding: 2px 8px; border-radius: 20px; font-weight: bold; font-size: 12px; margin-left: 10px; }
+    #historyModal { display: none; position: fixed; top: 70px; right: 20px; background: rgba(15, 23, 42, 0.95); border: 1px solid #00d2ff; padding: 15px; border-radius: 8px; z-index: 10000; max-height: 400px; overflow-y: auto; box-shadow: 0 0 20px rgba(0,0,0,0.8); color: white; }
+    #historyTable { width: 100%; border-collapse: collapse; font-size: 12px; }
+    #historyTable th { border-bottom: 1px solid #00d2ff; padding: 5px; color: #00d2ff; }
+    #historyTable td { padding: 5px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+  </style>
+</head>
+
+<body>
+
+<div class="controls">
+  <input type="file" id="fileInput" accept=".tsv,.csv,.xlsx,.xls,.txt" />
+
+  <div style="display: inline-block; vertical-align: middle;">
+    <input type="text" id="ubiHelper" list="ubiSuggestions" placeholder="🔍 Suggestion Target...">
+    <datalist id="ubiSuggestions"></datalist>
+    <textarea id="sourceUBIsearch" placeholder="Queue list (Targets)..."></textarea>
+  </div>
+
+  <button id="playBtn">▶</button>
+  <button id="prevBtn">⬅ Précédent</button>
+  <button id="nextBtn">➡ Suivant</button>
+
+  <div class="stats-group" style="display: inline-flex; align-items: center;">
+    <span id="counter" title="Position">0 / 0</span>
+    <span id="taskProgress" title="Sources complétées sur ce Target">0 / 0</span>
+    <span id="targetCounter" title="Total validé" style="color: #92fe9d; font-weight: bold; margin-left: 10px;">Total: 0</span>
+  </div>
+  <button id="historyBtn">📋 Logs</button>
+</div>
+
+<div id="viewer"></div>
+
+<div id="historyModal">
+    <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+        <strong>PROCESSED TARGETS</strong>
+        <button id="closeHistory" style="cursor:pointer;">X</button>
+    </div>
+    <table id="historyTable">
+        <thead><tr><th>TargetUBI</th><th>Sources</th></tr></thead>
+        <tbody id="historyBody"></tbody>
+    </table>
+</div>
+
+<script>
+// Clés isolées pour le mode Target vs Source
+const KEY_RESULTS = "qaResults_inverse";
+const KEY_TOTAL = "totalTargetsProcessed_inverse";
+const KEY_HISTORY = "processedHistory_inverse";
+
+let groupedData = [];
+let currentIndex = 0;
+let qaResults = JSON.parse(localStorage.getItem(KEY_RESULTS) || "[]");
+let totalTargetsProcessed = parseInt(localStorage.getItem(KEY_TOTAL) || "0");
+let processedHistory = JSON.parse(localStorage.getItem(KEY_HISTORY) || "[]");
+
+$(document).ready(function() {
+    $("#targetCounter").text(`Total: ${totalTargetsProcessed}`);
+    updateHistoryUI();
+});
+
+/* =========================
+   GROUPING & SUGGESTIONS
+========================= */
+function groupByTarget(data) {
+  const map = {};
+  data.forEach(row => {
+    const key = row.targetUBI;
+    if (!key) return;
+    if (!map[key]) map[key] = { target: row, sources: [] };
+    map[key].sources.push(row);
+  });
+  return Object.values(map);
+}
+
+function updateSuggestions() {
+  const datalist = document.getElementById('ubiSuggestions');
+  datalist.innerHTML = ''; 
+  groupedData.forEach(item => {
+    const option = document.createElement('option');
+    option.value = item.target.targetUBI;
+    datalist.appendChild(option);
+  });
+}
+
+/* =========================
+   PROGRESS COUNTERS
+========================= */
+function updateTaskCounter() {
+    const total = $("#viewer .bottom-row .card.bottom").length - 1; // Exclure la carte Target de gauche
+    if (total <= 0) { $("#taskProgress").text("0 / 0"); return; }
+    
+    let completed = 0;
+    $("#viewer .bottom-row .card.bottom").not(":first").each(function() {
+        const dupe = $(this).find(".qa-input-dupe").val()?.trim();
+        const reason = $(this).find(".qa-input-reason").val()?.trim();
+        if (dupe && reason) completed++;
+    });
+    
+    $("#taskProgress").text(`${completed} / ${total}`);
+    $("#taskProgress").css("background", completed === total ? "rgba(146, 254, 157, 0.4)" : "rgba(146, 254, 157, 0.1)");
+}
+
+$(document).on("input change", ".qa-input-dupe, .qa-input-reason, .qa-check", updateTaskCounter);
+
+/* =========================
+   HELPERS
+========================= */
+function isURL(str) { return /^https?:\/\//.test(str); }
+function truncate(text, max = 60) { return (!text || text.length <= max) ? text : text.substring(0, max) + "..."; }
+function encodeAttr(value) { return encodeURIComponent(value || ""); }
+function decodeAttr(value) { return decodeURIComponent(value || ""); }
+
+function singleLine(value) {
+  if (!value) return `<div class="line">&nbsp;</div>`;
+  if (isURL(value)) return `<div class="line"><a href="${value}" target="_blank">${truncate(value)}</a></div>`;
+  return `<div class="line">${truncate(value)}</div>`;
+}
+
+function splitLines(value, maxLines) {
+  let arr = (value || '').toString().split(',').map(v => v.trim());
+  let html = '';
+  for (let i = 0; i < maxLines; i++) {
+    let v = arr[i] || "";
+    if (!v) html += `<div class="line">&nbsp;</div>`;
+    else if (isURL(v)) html += `<div class="line"><a href="${v}" target="_blank">${truncate(v)}</a></div>`;
+    else html += `<div class="line">${truncate(v)}</div>`;
+  }
+  return html;
+}
+
+function block(title, linesHtml) { return `<div class="block" data-type="${title}"><div class="block-title">${title}</div>${linesHtml}</div>`; }
+function section(title, content) { return `<div class="section-block"><div class="section-header">${title}</div>${content}</div>`; }
+
+/* =========================
+   BUILD CARDS
+========================= */
+function buildTargetData(t) {
+  let html = `<div class='card bottom'><strong>TARGET REFERENCE</strong>`;
+  
+  // 1. Section Trademark
+  let trademark = "";
+  for (let i = 1; i <= 5; i++) {
+    trademark += block(`Trademark${i}Number`, singleLine(t[`targetTrademark${i}RegistrationNumber`]));
+    trademark += block(`Trademark${i}Office`, singleLine(t[`targetTrademark${i}Office`]));
+  }
+  html += section("Trademark", trademark);
+
+  // 2. Section Brand Representation
+  let brand = "";
+  for (let i = 1; i <= 5; i++) {
+    brand += block(`Brand${i}Name`, singleLine(t[`targetBrandRepresentation${i}Name`]));
+    brand += block(`Brand${i}Locale`, singleLine(t[`targetBrandRepresentation${i}Locale`]));
+    brand += block(`Brand${i}Websites`, splitLines(t[`targetBrandRepresentation${i}WebsiteURLs`], 4));
+    brand += block(`Brand${i}Products`, splitLines(t[`targetBrandRepresentation${i}ProductURLs`], 4));
+  }
+  html += section("BrandRepresentation", brand);
+
+  // --- AJOUT DU BLOC TRUTHSET TARGET CI-DESSOUS ---
+  let truthset = "";
+  truthset += block("TruthSetTrademark", splitLines(t.targetTruthSetTrademark, 2));
+  truthset += block("TruthSetWebsite", splitLines(t.targetTruthSetWebsite, 2));
+  truthset += block("TruthSetProduct1", splitLines(t.targetTruthSetProduct1, 2));
+  truthset += block("TruthSetProduct2", splitLines(t.targetTruthSetProduct2, 2));
+  html += section("TruthSet", truthset);
+  // -----------------------------------------------
+
+  html += `</div>`;
+  return html;
+}
+
+//TruthSet build
+function buildSourceData(s) {
+  let html = `<div class='card bottom'><strong>SOURCE DATA</strong>`;
+  
+  // Trademark
+  let trademark = "";
+  for (let i = 1; i <= 5; i++) {
+    trademark += block(`Trademark${i}Number`, singleLine(s[`sourceTrademark${i}RegistrationNumber`]));
+    trademark += block(`Trademark${i}Office`, singleLine(s[`sourceTrademark${i}Office`]));
+  }
+  html += section("Trademark", trademark);
+
+  // Brand Representation
+  let brand = "";
+  for (let i = 1; i <= 5; i++) {
+    brand += block(`Brand${i}Name`, singleLine(s[`sourceBrandRepresentation${i}Name`]));
+    brand += block(`Brand${i}Locale`, singleLine(s[`sourceBrandRepresentation${i}Locale`]));
+    brand += block(`Brand${i}Websites`, splitLines(s[`sourceBrandRepresentation${i}WebsiteURLs`], 4));
+    brand += block(`Brand${i}Products`, splitLines(s[`sourceBrandRepresentation${i}ProductURLs`], 4));
+  }
+  html += section("BrandRepresentation", brand);
+
+  // TruthSet (Bloc complet)
+  let truthset = "";
+  truthset += block("TruthSetTrademark", splitLines(s.sourceTruthSetTrademark, 2));
+  truthset += block("TruthSetWebsite", splitLines(s.sourceTruthSetWebsite, 2));
+  truthset += block("TruthSetProduct1", splitLines(s.sourceTruthSetProduct1, 2));
+  truthset += block("TruthSetProduct2", splitLines(s.sourceTruthSetProduct2, 2));
+  html += section("TruthSet", truthset);
+
+  // QA BLOCKS (Inchangés)
+  html += block("Answer_IsDupe", `<div class="line">${s.Answer_IsDupe || "&nbsp;"}</div>`);
+  html += block("Answer_Reason", `<div class="line">${s.Answer_Reason || "&nbsp;"}</div>`);
+  html += `
+  <div class="block qa-block">
+    <input type="checkbox" class="qa-check" data-dupe="${encodeAttr(s.Answer_IsDupe)}" data-reason="${encodeAttr(s.Answer_Reason)}">
+    <input class="block-title qa-title" value="Answer_IsDupe">
+    <input class="line qa-input-dupe" value="">
+  </div>
+  <div class="block qa-block">
+    <input class="block-title qa-title" value="Answer_Reason">
+    <input class="line qa-input-reason" value="">
+  </div>`;
+  
+  html += `</div>`;
+  return html;
+}
+
+
+/* =========================
+   RENDER
+========================= */
+function render() {
+  const container = $("#viewer"); container.empty();
+  if (!groupedData.length) return;
+
+  const item = groupedData[currentIndex];
+  const target = item.target;
+  const sources = item.sources;
+  const cols = sources.length + 1;
+
+  const topRow = $("<div class='top-row'></div>").css("grid-template-columns", `repeat(${cols}, 1fr)`);
+  const bottomRow = $("<div class='bottom-row'></div>").css("grid-template-columns", `repeat(${cols}, 1fr)`);
+
+  topRow.append(`<div class='card'><strong>TARGET</strong><div class='line'>${truncate(target.targetName)}</div><div class='line'>${target.targetUBI}</div><div class='line'>REF</div></div>`);
+  sources.forEach((s, i) => {
+    topRow.append(`<div class='card'><strong>SOURCE ${i+1}</strong><div class='line'>${truncate(s.sourceName)}</div><div class='line'>${s.sourceUBI}</div><div class='line'>${s.TaskID || ""}</div></div>`);
+  });
+
+  bottomRow.append(buildTargetData(target));
+  sources.forEach(s => bottomRow.append(buildSourceData(s)));
+
+  container.append("<div class='section-title'>TOP</div>").append(topRow).append("<div class='section-title'>BOTTOM</div>").append(bottomRow);
+  $("#counter").text(`${currentIndex+1} / ${groupedData.length}`);
+  hideEmptyRowsAcrossCards();
+  applyHighlight();
+  updateTaskCounter();
+  applyStatusColors();
+  applySourceTargetGlow();
+}
+
+/* =========================
+   FILE & EVENTS
+========================= */
+$("#fileInput").on("change", function() {
+  const file = this.files[0];
+  const processData = (json) => { groupedData = groupByTarget(json); currentIndex = 0; render(); updateSuggestions(); };
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    if (file.name.match(/\.xls.?$/)) {
+      const workbook = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+      processData(XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" }));
+    } else {
+      Papa.parse(file, { header: true, skipEmptyLines: true, complete: (r) => processData(r.data) });
+    }
+  };
+  if (file.name.match(/\.xls.?$/)) reader.readAsArrayBuffer(file);
+  else reader.readAsText(file);
+});
+
+/* =========================
+   SUBMIT & LOGS
+========================= */
+$(document).on("click", "#submitBtn", function() {
+  const sourceCount = $("#viewer .top-row .card").length - 1;
+  if (sourceCount <= 0) return;
+  let batchResults = [];
+  const targetUBI = groupedData[currentIndex].target.targetUBI;
+
+  for (let i = 2; i <= sourceCount + 1; i++) {
+    const $top = $(`#viewer .top-row .card:nth-child(${i})`);
+    const $bottom = $(`#viewer .bottom-row .card:nth-child(${i})`);
+
+    batchResults.push([
+      $top.find("div:nth-child(2)").text().trim(), $top.find("div:nth-child(3)").text().trim(), $top.find("div:nth-child(4)").text().trim(),
+      $bottom.find(".block[data-type='Answer_IsDupe'] .line").first().text().trim(),
+      $bottom.find(".block[data-type='Answer_Reason'] .line").first().text().trim(),
+      $bottom.find(".qa-input-dupe").val()?.trim(), $bottom.find(".qa-input-reason").val()?.trim()
+    ].join("\t"));
+  }
+
+  qaResults = qaResults.concat(batchResults);
+  localStorage.setItem(KEY_RESULTS, JSON.stringify(qaResults));
+  copyToClipboard(batchResults.join("\n"));
+
+  totalTargetsProcessed++;
+  localStorage.setItem(KEY_TOTAL, totalTargetsProcessed);
+  $("#targetCounter").text(`Total: ${totalTargetsProcessed}`);
+  
+  processedHistory.push({ ubi: targetUBI, count: sourceCount });
+  localStorage.setItem(KEY_HISTORY, JSON.stringify(processedHistory));
+  updateHistoryUI();
+
+  // Gestion de la file d'attente
+  let lines = $("#sourceUBIsearch").val().split('\n').map(l => l.trim()).filter(l => l !== "");
+  if (lines.length > 0 && lines[0] === targetUBI.toString()) {
+    lines.shift();
+    $("#sourceUBIsearch").val(lines.join('\n'));
+    if (lines.length > 0) {
+      const nextIdx = groupedData.findIndex(item => item.target.targetUBI.toString() === lines[0]);
+      if (nextIdx !== -1) { currentIndex = nextIdx; render(); return; }
+    }
+  }
+
+  if (currentIndex < groupedData.length - 1) { currentIndex++; render(); }
+  else { alert("✅ Batch terminé !"); }
+});
+
+function updateHistoryUI() {
+    const body = $("#historyBody"); body.empty();
+    processedHistory.slice().reverse().forEach(item => {
+        body.append(`<tr><td>${item.ubi}</td><td style="text-align:center;">${item.count}</td></tr>`);
+    });
+}
+
+function copyToClipboard(text) {
+  const textarea = document.createElement("textarea");
+  textarea.value = text; document.body.appendChild(textarea);
+  textarea.select(); document.execCommand("copy"); textarea.remove();
+}
+
+/* =========================
+   RACCOURCIS & NAV
+========================= */
+$(document).on('keydown', function(e) {
+  if (e.key === 'Tab') {
+    const checkboxes = $('.qa-check:visible');
+    if (checkboxes.length > 0) {
+      const currentIndexCB = checkboxes.index(document.activeElement);
+      let nextIndex = e.shiftKey ? (currentIndexCB > 0 ? currentIndexCB - 1 : checkboxes.length - 1) : (currentIndexCB < checkboxes.length - 1 ? currentIndexCB + 1 : 0);
+      e.preventDefault(); checkboxes.eq(nextIndex).focus();
+    }
+  }
+  if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); $("#submitBtn").click(); }
+});
+
+$("#ubiHelper").on("change", function() {
+  const val = $(this).val().trim(); if (!val) return;
+  const textarea = $("#sourceUBIsearch");
+  textarea.val(textarea.val() ? textarea.val() + "\n" + val : val);
+  $(this).val(""); textarea.focus();
+});
+
+$("#playBtn").click(function() {
+  const lines = $("#sourceUBIsearch").val().split('\n').map(l => l.trim()).filter(l => l !== "");
+  if (!lines.length) return;
+  const index = groupedData.findIndex(item => item.target.targetUBI.toString() === lines[0]);
+  if (index !== -1) { currentIndex = index; render(); }
+});
+
+$("#prevBtn").click(() => { if(currentIndex > 0) { currentIndex--; render(); }});
+$("#nextBtn").click(() => { if(currentIndex < groupedData.length - 1) { currentIndex++; render(); }});
+
+$(document).on("change", ".qa-check", function() {
+  const card = $(this).closest(".card");
+  if ($(this).is(":checked")) {
+    card.find(".qa-input-dupe").val(decodeAttr($(this).attr("data-dupe")));
+    card.find(".qa-input-reason").val(decodeAttr($(this).attr("data-reason")));
+  } else {
+    card.find(".qa-input-dupe").val(""); card.find(".qa-input-reason").val("");
+  }
+  updateTaskCounter();
+});
+
+/* =========================
+   CLEANUP & EXPORT
+========================= */
+$(document).on("click", "#exportBtn", function() {
+  const data = JSON.parse(localStorage.getItem(KEY_RESULTS) || "[]");
+  const blob = new Blob([data.join("\n")], { type: "text/tab-separated-values" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "qa_results_inverse.tsv"; a.click();
+});
+
+$(document).on("click", "#copyBtn", function() {
+  const data = JSON.parse(localStorage.getItem(KEY_RESULTS) || "[]");
+  if (data.length) { copyToClipboard(data.join("\n")); alert("📋 Copié !"); }
+});
+
+$(document).on("click", "#resetBtn", function() { 
+  if(confirm("Effacer la mémoire du Mode Inversé ?")) {
+    localStorage.removeItem(KEY_RESULTS); localStorage.removeItem(KEY_TOTAL); localStorage.removeItem(KEY_HISTORY);
+    location.reload();
+  }
+});
+
+function hideEmptyRowsAcrossCards() {
+    const cards = $("#viewer .bottom-row > .card");
+    if (!cards.length) return;
+
+    let maxLines = 0;
+    cards.each(function() { 
+        const count = $(this).find(".line").length; 
+        if (count > maxLines) maxLines = count; 
+    });
+
+    for (let i = 0; i < maxLines; i++) {
+        let allEmpty = true;
+        cards.each(function() {
+            const line = $(this).find(".line").eq(i);
+            if (!line.length) return;
+
+            // Ne jamais masquer les champs de saisie QA
+            if (line.hasClass("qa-input-dupe") || line.hasClass("qa-input-reason")) { 
+                allEmpty = false; 
+                return false; 
+            }
+
+            // Nettoyage du texte (on remplace l'espace insécable &nbsp; par un vide)
+            let text = line.text().replace(/\u00a0/g, " ").trim();
+            
+            // Si la ligne contient du texte ou un lien, elle n'est pas vide
+            if (text !== "" || line.find('a').length > 0) { 
+                allEmpty = false; 
+                return false; 
+            }
+        });
+
+        if (allEmpty) {
+            cards.each(function() { $(this).find(".line").eq(i).hide(); });
+        } else {
+            cards.each(function() { $(this).find(".line").eq(i).show(); });
+        }
+    }
+}
+
+function applyHighlight() {
+  $("#viewer .bottom-row .line").each(function() {
+    const txt = $(this).text().toLowerCase();
+    if (txt.includes("source")) $(this).css({"color": "#ff0044", "font-weight": "bold"});
+    else if (txt.includes("target")) $(this).css({"color": "#ad22c5", "font-weight": "bold"});
+  });
+}
+
+$("#historyBtn").click(() => $("#historyModal").toggle());
+$("#closeHistory").click(() => $("#historyModal").hide());
+
+		/* couleur de bordures spécifiques pour answerDupe OL*/
+function applyStatusColors() {
+    const targetElement = $("#viewer > div.bottom-row > div > div:nth-child(5) > div.line");
+    
+    targetElement.each(function() {
+        const text = $(this).text().trim();
+        
+        // On retire les anciennes classes au cas où
+        $(this).removeClass("border-marron border-marine border-violet border-red border-green");
+
+			 if (text.includes("COULD_NOT_CONCLUDE"))	 {$(this).addClass("border-marron");} 
+		else if (text.includes("DUPLICATE"))			 {$(this).addClass("border-marine");}
+		else if (text.includes("UNIQUE"))				 {$(this).addClass("border-violet");}
+		else if (text.includes("SOURCE"))			 {$(this).addClass("border-red");}
+		else if (text.includes("TARGET"))			 {$(this).addClass("border-green");}
+    });
+}
+
+function applySourceTargetGlow() {
+    // Cible le 6ème bloc (généralement le texte long/Product Data)
+    const lines = $("#viewer > div.bottom-row > div > div:nth-child(6) > div.line");
+
+    lines.each(function() {
+        const content = $(this).text().toLowerCase();
+        
+        // Nettoyage des classes précédentes
+        $(this).removeClass("glow-source glow-target");
+
+        if (content.includes('source')) {
+            $(this).addClass("glow-source");
+        } 
+        else if (content.includes('target')) {
+            $(this).addClass("glow-target");
+        }
+    });
+}
+
+
+</script>
+
+<div id="floatingPanel">
+  <button id="submitBtn">Submit</button>
+  <button id="exportBtn">Export tsv</button>
+  <button id="copyBtn">Copy TSV</button>
+  <button id="resetBtn">RESET</button>
+</div>
+
+</body>
+</html>
