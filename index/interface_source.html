@@ -88,6 +88,14 @@
 		  <button id="playBtn">▶</button>
 		  <button id="prevBtn">⬅ Précédent</button>
 		  <button id="nextBtn">➡ Suivant</button>
+			<div class="list-wrapper">
+				<button id="liste">📋 Liste</button>
+				
+				<div id="listPanel" class="panel collapsed bottom-deploy">
+					<h3 class="list-title">Synthèse Targets</h3>
+					<div id="listContent"></div>
+				</div>
+			</div>
 
 		<div class="stats-group" style="display: inline-flex; align-items: center;">
 		  <span id="counter" title="Position dans le fichier">0 / 0</span>
@@ -95,7 +103,13 @@
 		  <span id="targetCounter" title="Total validé dans la session" style="color: #92fe9d; font-weight: bold; margin-left: 10px;">Total: 0</span>
 		</div>
 		 <button id="historyBtn">📋 Logs</button>
-		</div>
+		
+		
+		
+		
+		
+		
+</div>
 
 		<div id="viewer"></div>
 
@@ -523,19 +537,33 @@ function applyStatusColors() {
 }
 
 function applySourceTargetGlow() {
-    // Cible le 6ème bloc (généralement le texte long/Product Data)
-    const lines = $("#viewer > div.bottom-row > div > div:nth-child(6) > div.line");
+    // 1. Cible le viewer principal (inchangé)
+    const viewerLines = $("#viewer > div.bottom-row > div > div:nth-child(6) > div.line");
+    
+    // 2. Cible les items de la liste
+    const listItems = $("#listContent .summary-item");
 
-    lines.each(function() {
+    // Traitement Viewer
+    viewerLines.each(function() {
         const content = $(this).text().toLowerCase();
+        $(this).removeClass("glow-source glow-target");
+        if (content.includes('source')) { $(this).addClass("glow-source"); } 
+        else if (content.includes('target')) { $(this).addClass("glow-target"); }
+    });
+
+    // Traitement Liste (C'est ici que ça se joue)
+    listItems.each(function() {
+        // On récupère UNIQUEMENT le texte de la réponse, pas le numéro TARGET X
+        const responseText = $(this).find(".summary-text").text().toLowerCase();
         
-        // Nettoyage des classes précédentes
+        // On retire d'abord TOUTES les classes de glow pour repartir à zéro
         $(this).removeClass("glow-source glow-target");
 
-        if (content.includes('source')) {
+        // On n'applique le glow que si le mot est dans la RÉPONSE
+        if (responseText.includes('source')) {
             $(this).addClass("glow-source");
         } 
-        else if (content.includes('target')) {
+        else if (responseText.includes('target')) {
             $(this).addClass("glow-target");
         }
     });
@@ -544,15 +572,105 @@ function applySourceTargetGlow() {
 
 		
 
+/*11/04/2026 - 13:17 - BOUTON FLOTTANT⚙️*/
+$(document).ready(function() {
+    const mainBtn = document.getElementById('mainBtn');
+    const sidePanel = document.getElementById('sidePanel');
+
+    if (mainBtn && sidePanel) {
+        mainBtn.addEventListener('click', () => {
+            sidePanel.classList.toggle('collapsed');
+            mainBtn.classList.toggle('rotated');
+        });
+
+        // Fermer le menu après un clic sur une action (facultatif)
+        $(document).on("click", ".menu-btn", function() {
+            sidePanel.classList.add('collapsed');
+            mainBtn.classList.remove('rotated');
+        });
+    }
+});
+
+$(document).ready(function() {
+    $("#liste").click(function(e) {
+        e.stopPropagation();
+        const panel = $("#listPanel");
+        
+        if (panel.hasClass("collapsed")) {
+            const container = $("#listContent");
+            container.empty();
+
+            $("#viewer .bottom-row > div.card").each(function(index) {
+                if (index === 0) return; // Ignore la source
+
+                const title = $(`#viewer .top-row > div:nth-child(${index + 1}) strong`).text();
+                const text = $(this).find("> div:nth-child(6) > div.line").text().trim();
+
+                if (title) {
+                    const $item = $(`
+                        <div class="summary-item" data-index="${index}">
+                            <span class="summary-number">${title}</span>
+                            <div class="summary-text">${text || "<i>Vide</i>"}</div>
+                        </div>
+                    `);
+
+                    // Scroll au clic
+                    $item.on('click', function() {
+                        const targetCard = document.querySelector(`#viewer .bottom-row > div:nth-child(${index + 1})`);
+                        if (targetCard) {
+                            targetCard.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+                        }
+                    });
+
+                    container.append($item);
+                }
+            });
+
+            // --- APPEL DE LA FONCTION ICI ---
+            applySourceTargetGlow();
+        }
+        
+        panel.toggleClass("collapsed");
+    });
+
+    // Fermeture auto
+    // Navigation au clic vers le BAS de la colonne
+// Navigation au clic vers le BAS (6ème bloc de la colonne)
+$item.on('click', function() {
+    // On cible précisément le conteneur de données (6ème enfant)
+    // index + 1 car le sélecteur nth-child commence à 1
+    const targetCell = document.querySelector(
+        `#viewer .bottom-row > div:nth-child(${index + 1}) > div:nth-child(6)`
+    );
+
+    if (targetCell) {
+        targetCell.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'end',      /* 'end' force l'alignement sur le bas de l'élément */
+            inline: 'center'   /* Centre la colonne horizontalement */
+        });
+
+        // Feedback visuel : flash rapide sur la cellule pour montrer qu'on est arrivé
+        $(targetCell).addClass('highlight-flash');
+        setTimeout(() => $(targetCell).removeClass('highlight-flash'), 1000);
+    }
+});
+});
+//=======================
 
 		</script>
 
-		<div id="floatingPanel">
-		  <button id="submitBtn">Submit</button>
-		  <button id="exportBtn">Export tsv</button>
-		  <button id="copyBtn">Copy TSV</button>
-		  <button id="resetBtn">RESET</button>
-		</div>
+<div class="floating-container" id="floatingPanelContainer">
+    <button id="mainBtn" class="toggle-btn">+</button>
+
+    <div id="sidePanel" class="panel collapsed">
+        <h3 style="color: var(--primary); font-family: 'Orbitron'; font-size: 14px; margin-bottom: 15px;">Actions QA</h3>
+        <button id="submitBtn" class="menu-btn">🚀 Submit (Ctrl+Enter)</button>
+        <button id="exportBtn" class="menu-btn">💾 Export TSV</button>
+        <button id="copyBtn" class="menu-btn">📋 Copy TSV</button>
+        <button id="resetBtn" class="menu-btn" style="color: #ff7675;">🧹 Reset All</button>
+    </div>
+</div>
 
 		</body>
 		</html>
