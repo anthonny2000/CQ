@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Counter BDD - Pro</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+	<script src="CNC.js"></script>
+	<script src="DUPL.js"></script>
+	<script src="UNQ.js"></script>
+	
+	<script src="mapping.js"></script>
+	
+    
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600&display=swap');
+
+        :root {
+            --sidebar-width: 260px;
+            --sidebar-close-width: 80px;
+            --primary-color: #9c27b0;
+            --bg-dark: #0e0e1f;
+            --bg-panel: #1a1a3a;
+            --text-color: #e0e0ff;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Montserrat', sans-serif; }
+        body { background: var(--bg-dark); color: var(--text-color); overflow-x: hidden; }
+
+        /* --- NAVBAR --- */
+        .navbar {
+            position: fixed;
+            top: 0; width: 100%; left: 0;
+            background-color: var(--bg-panel);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 15px 30px; z-index: 1000;
+            border-bottom: 2px solid var(--primary-color); height: 70px;
+        }
+        .logo_item { display: flex; align-items: center; column-gap: 10px; font-size: 20px; font-weight: 600; color: white; }
+
+        /* --- SIDEBAR --- */
+        .sidebar {
+            background-color: var(--bg-panel);
+            width: var(--sidebar-width);
+            position: fixed; top: 0; left: 0; height: 100%;
+            padding: 80px 15px 20px; z-index: 100;
+            transition: all 0.5s ease; border-right: 1px solid #444;
+        }
+        .sidebar.close { width: var(--sidebar-close-width); }
+        .menu_title { margin: 15px 0; padding: 0 15px; font-size: 11px; text-transform: uppercase; color: #888; font-weight: bold; }
+        .sidebar.close .menu_title { display: none; }
+
+        /* STYLE BOUTON SIDEBAR */
+        .nav_link {
+            display: flex; align-items: center;
+            width: 100%; padding: 10px 15px;
+            border-radius: 5px; text-decoration: none;
+            color: white; background: rgba(255, 255, 255, 0.05);
+            white-space: nowrap; cursor: pointer; margin-bottom: 8px;
+            transition: 0.2s; font-size: 11px; text-transform: uppercase; font-weight: 600;
+            border: 1px solid rgba(156, 39, 176, 0.2);
+        }
+        .nav_link:hover { background: var(--primary-color); box-shadow: 0 0 10px rgba(156, 39, 176, 0.4); }
+        .nav_link.active { background: var(--primary-color); border-color: #7efff5; }
+        
+        .navlink_icon { position: relative; font-size: 18px; min-width: 35px; display: flex; align-items: center; justify-content: center; }
+        .sidebar.close .navlink { display: none; }
+
+        .error-badge-mini {
+            position: absolute; top: -5px; right: -5px;
+            background: #ff4444; color: white; font-size: 10px;
+            padding: 2px 5px; border-radius: 10px; font-weight: bold; display: none;
+        }
+
+        /* --- CONTENU --- */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            padding: 90px 20px 20px; transition: all 0.5s ease;
+        }
+        .sidebar.close ~ .main-content { margin-left: var(--sidebar-close-width); }
+
+        .upload-zone {
+            background: rgba(40,40,60,0.5); border: 1px dashed var(--primary-color);
+            border-radius: 10px; padding: 15px; text-align: center; margin-bottom: 20px;
+        }
+
+        #result { background: #1a1a2e; border-radius: 8px; padding: 15px; overflow-x: auto; min-height: 400px; }
+
+        /* --- TABLES --- */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td {
+            padding: 8px 10px; border: 1px solid #444;
+            text-align: center; font-size: 11px;
+        }
+        /* Style spécifique pour les données horizontales */
+        .table-stats td, .table-stats th { width: 80px; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .table-stats td:first-child, .table-stats th:first-child {
+            text-align: left; position: sticky; left: 0; background: #1a1a3a; z-index: 10;
+            width: 180px; max-width: 180px; min-width: 180px; border-right: 2px solid var(--primary-color);
+        }
+        
+        /* Style spécifique pour le tableau d'erreurs */
+        .table-errors td { text-align: left; white-space: normal; word-break: break-all; cursor: pointer; }
+        .table-errors td:first-child { width: 200px; font-weight: 600; color: #7efff5; }
+
+        thead th { background: #2e2e60; color: #7efff5; position: sticky; top: 0; z-index: 11; }
+        tbody tr:nth-child(even) { background: rgba(255,255,255,0.03); }
+        tbody tr:hover { background: rgba(156, 39, 176, 0.1); }
+		.correction {
+    padding: 8px 15px;
+    background: #ff4444;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.correction:hover { opacity: 0.8; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="logo_item">
+        <i class="bx bx-menu" id="sidebarOpen"></i>
+        Counter-BDD
+    </div>
+    <div id="progress">Veuillez charger des fichiers</div>
+</nav>
+
+<nav class="sidebar">
+    <div class="menu_content">
+        <ul class="menu_items">
+            <div class="menu_title">Analyses</div>
+            <li class="item">
+                <a onclick="renderGlobal()" class="nav_link" id="btn-global">
+                    <span class="navlink_icon"><i class="bx bx-grid-alt"></i></span>
+                    <span class="navlink">Global</span>
+                </a>
+            </li>
+            <li class="item">
+                <a onclick="renderByWorker()" class="nav_link" id="btn-worker">
+                    <span class="navlink_icon"><i class="bx bx-user"></i></span>
+                    <span class="navlink">Workers</span>
+                </a>
+            </li>
+            <li class="item">
+                <a onclick="renderByBatch()" class="nav_link" id="btn-batch">
+                    <span class="navlink_icon"><i class="bx bx-layer"></i></span>
+                    <span class="navlink">Batches</span>
+                </a>
+            </li>
+            <li class="item">
+                <a onclick="renderTruthSet()" class="nav_link" id="btn-truth">
+                    <span class="navlink_icon"><i class="bx bx-check-shield"></i></span>
+                    <span class="navlink">Truth Set</span>
+                </a>
+            </li>
+        </ul>
+
+<ul class="menu_items">
+            <div class="menu_title">Maintenance</div>
+            <li class="item">
+                <a onclick="renderErreursFind()" class="nav_link" id="btn-erreurs">
+                    <span class="navlink_icon">
+                        <i class="bx bx-bug"></i>
+                        <span id="side-error-badge" class="error-badge-mini">0</span>
+                    </span>
+                    <span class="navlink">Erreur Find</span>
+                </a>
+            </li>
+            <li class="item">
+                <a onclick="renderCorrespondence()" class="nav_link" id="btn-correspondence">
+                    <span class="navlink_icon">
+                        <i class="bx bx-transfer-alt"></i>
+                        <span id="side-corresp-badge" class="error-badge-mini">0</span>
+                    </span>
+                    <span class="navlink">Erreurs Correspondance</span>
+                </a>
+            </li>
+            <li class="item">
+                <label for="fileInput" class="nav_link">
+                    <span class="navlink_icon"><i class="bx bx-cloud-upload"></i></span>
+                    <span class="navlink">Charger Fichiers</span>
+                </label>
+            </li>
+        </ul>
+
+        <ul class="menu_items">
+            <div class="menu_title">Export</div>
+            <li class="item"><a onclick="copier()" class="nav_link" style="background: #27ae60; border: none;"><span class="navlink_icon"><i class="bx bx-copy"></i></span><span class="navlink">Copier</span></a></li>
+        </ul>
+    </div>
+</nav>
+
+<main class="main-content">
+    <div class="upload-zone">
+        <input type="file" id="fileInput" multiple accept=".csv,.tsv,.xlsx" style="display:none;">
+        <p>Utilisez le bouton "Charger Fichiers" pour commencer.</p>
+    </div>
+    <div id="result">
+        <div style="text-align:center; padding-top:50px; opacity:0.3;">
+            <i class="bx bx-stats" style="font-size:80px;"></i>
+            <p>Aucune donnée à afficher</p>
+        </div>
+    </div>
+</main>
+
+<script>
+let rows = [];
+let dirtyData = []; 
+let correspErrors = []; 
+
+const OUTPUT_KEYS = ['COULD_NOT_CONCLUDE','DUPLICATE','UNIQUE',...new Set(Object.values(REASON_MAPPING))];
+
+const sidebar = document.querySelector(".sidebar");
+const sidebarOpen = document.querySelector("#sidebarOpen");
+sidebarOpen.addEventListener("click", () => sidebar.classList.toggle("close"));
+
+document.getElementById("fileInput").addEventListener("change", async e => {
+    rows = [];
+    const files = e.target.files;
+    const totalFiles = files.length;
+    const navbar = document.querySelector(".navbar");
+    
+    document.getElementById("progress").textContent = "Chargement...";
+
+    for (let i = 0; i < totalFiles; i++) {
+        const file = files[i];
+        
+        // Mise à jour de la barre de progression (background de la navbar)
+        const percent = ((i + 1) / totalFiles) * 100;
+        navbar.style.background = `linear-gradient(90deg, #2e2e60 ${percent}%, var(--bg-panel) ${percent}%)`;
+
+        let dataToPush = [];
+        if (file.name.endsWith(".xlsx")) {
+            const data = await file.arrayBuffer();
+            const wb = XLSX.read(data, { type: "array" });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            dataToPush = XLSX.utils.sheet_to_json(ws, { defval: "" });
+        } else {
+            const text = await file.text();
+            const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+            dataToPush = parsed.data;
+        }
+        dataToPush.forEach(r => { r.fileName = file.name; });
+        rows.push(...dataToPush);
+    }
+
+    // Une fois terminé, on remet le fond normal ou on laisse à 100%
+    navbar.style.background = `var(--bg-panel)`;
+    
+    calculateErrors();
+    document.getElementById("progress").textContent = `${rows.length} lignes chargées.`;
+    renderGlobal();
+});
+
+// --- LOGIQUE DE DÉTECTION DES ERREURS ---
+function calculateErrors() {
+    dirtyData = [];
+    correspErrors = [];
+
+    rows.forEach(r => {
+        const val = (r.Answer_Reason || "").trim();
+        const type = (r.Answer_IsDupe || "").trim();
+        
+        if (val === "" && type === "") return;
+
+        // 1. Détection Erreurs de Format
+        let isDirty = false;
+        if (val !== "") {
+            if (val.includes(';') || val.includes(' ')) isDirty = true;
+            if (val.includes(',') && !val.includes('","')) isDirty = true;
+            if (val.includes('""')) isDirty = true;
+            if (val.startsWith('[[') || !val.startsWith('[') || !val.endsWith(']')) isDirty = true;
+        }
+        if (isDirty) {
+            dirtyData.push({ file: r.fileName, taskId: r.TaskID || "N/A", val: val });
+        }
+
+        // 2. Détection Erreurs de Correspondance
+        let isValidMapping = false;
+        if (type === "UNIQUE") {
+            isValidMapping = typeof VALID_UNQ_LIST !== 'undefined' && VALID_UNQ_LIST.includes(val);
+        } else if (type === "DUPLICATE") {
+            isValidMapping = typeof VALID_DUPL_LIST !== 'undefined' && VALID_DUPL_LIST.includes(val);
+        } else if (type === "COULD_NOT_CONCLUDE") {
+            isValidMapping = typeof VALID_CNC_LIST !== 'undefined' && VALID_CNC_LIST.includes(val);
+        }
+
+        if (!isValidMapping && type !== "" && val !== "") {
+            let correctType = "UNKNOWN";
+            if (typeof VALID_UNQ_LIST !== 'undefined' && VALID_UNQ_LIST.includes(val)) correctType = "UNIQUE";
+            else if (typeof VALID_DUPL_LIST !== 'undefined' && VALID_DUPL_LIST.includes(val)) correctType = "DUPLICATE";
+            else if (typeof VALID_CNC_LIST !== 'undefined' && VALID_CNC_LIST.includes(val)) correctType = "COULD_NOT_CONCLUDE";
+
+            correspErrors.push({
+                taskId: r.TaskID || "N/A",
+                wrong: type,
+                correct: correctType,
+                reason: val
+            });
+        }
+    });
+
+    updateBadges();
+}
+
+function updateBadges() {
+    const bFormat = document.getElementById("side-error-badge");
+    if (bFormat) {
+        bFormat.textContent = dirtyData.length;
+        bFormat.style.display = dirtyData.length > 0 ? "block" : "none";
+    }
+    const bCorresp = document.getElementById("side-corresp-badge");
+    if (bCorresp) {
+        bCorresp.textContent = correspErrors.length;
+        bCorresp.style.display = correspErrors.length > 0 ? "block" : "none";
+    }
+}
+
+// --- FONCTIONS DE RENDU ---
+function updateActive(id) {
+    document.querySelectorAll('.nav_link').forEach(a => a.classList.remove('active'));
+    if(id) document.getElementById(id).classList.add('active');
+}
+
+function renderGlobal() {
+    updateActive('btn-global');
+    const total = rows.length;
+    const counts = {};
+    OUTPUT_KEYS.forEach(k => counts[k] = 0);
+    rows.forEach(r => {
+        if (counts[r.Answer_IsDupe] !== undefined) counts[r.Answer_IsDupe]++;
+        const res = REASON_MAPPING[r.Answer_Reason] ?? null;
+        if (res && counts[res] !== undefined) counts[res]++;
+    });
+    const tableData = Object.keys(counts).map(k => [k, counts[k], total ? `${(counts[k]/total*100).toFixed(1)}%` : "0%"]);
+    tableData.push(["Grand Total", total, "100%"]);
+    draw(["Outcomes", "Count", "%"], tableData, "table-stats");
+}
+
+//ntégrer les boutons et créer une logique de "nettoyage"
+function renderErreursFind() {
+    updateActive('btn-erreurs');
+    const resultDiv = document.getElementById("result");
+    
+    // Header avec boutons
+    let html = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h3>⚠️ Erreurs de format (${dirtyData.length})</h3>
+            <div>
+                <button class="correction" onclick="appliquerCorrection()" style="margin-right:10px;">✨ Nettoyer Format</button>
+                <button class="correction" onclick="telechargerCorriger()" style="background:#2e2e60;">📥 Télécharger CSV Corrigé</button>
+            </div>
+        </div>
+    `;
+    
+    resultDiv.innerHTML = html;
+
+    if (dirtyData.length === 0) {
+        resultDiv.innerHTML += "<p>Aucune erreur de format détectée.</p>";
+        return;
+    }
+    
+    draw(["TaskID", "Error Value", "Fichier Source"], dirtyData.map(d => [d.taskId, d.val, d.file]), "table-errors");
+}
+
+
+function renderCorrespondence() {
+    updateActive('btn-correspondence');
+    const resultDiv = document.getElementById("result");
+    resultDiv.innerHTML = `<h3 style="margin-bottom:15px;">🔄 Erreurs de Correspondance (${correspErrors.length})</h3>`;
+    if (correspErrors.length === 0) {
+        resultDiv.innerHTML += "<p>Aucun mismatch détecté.</p>";
+        return;
+    }
+    const headers = ["TaskID", "wrong", "correct", "reason"];
+    const data = correspErrors.map(err => [err.taskId, err.wrong, err.correct, err.reason]);
+    draw(headers, data, "table-errors");
+}
+
+function renderByWorker(){
+    updateActive('btn-worker');
+    const map = {};
+    rows.forEach(r => {
+        const date = r.SubmissionTime ? r.SubmissionTime.split(' ')[0] : "N/A";
+        const key = date + "|" + (r.AwsWorkerID || "Inconnu");
+        if (!map[key]) {
+            map[key] = { Date: date, Worker: r.AwsWorkerID || "Inconnu" };
+            OUTPUT_KEYS.forEach(k => map[key][k] = 0);
+        }
+        if (map[key][r.Answer_IsDupe] !== undefined) map[key][r.Answer_IsDupe]++;
+        const res = REASON_MAPPING[r.Answer_Reason] ?? null;
+        if (res && map[key][res] !== undefined) map[key][res]++;
+    });
+    const headers = ["Date", "Worker", ...OUTPUT_KEYS];
+    const data = Object.values(map).map(o => headers.map(h => o[h] ?? 0));
+    draw(headers, data, "table-stats");
+}
+
+function renderByBatch() {
+    updateActive('btn-batch');
+    const fileNames = [...new Set(rows.map(r => r.fileName))].sort();
+    const map = {};
+    OUTPUT_KEYS.forEach(k => { map[k] = {}; fileNames.forEach(f => map[k][f] = 0); });
+    rows.forEach(r => {
+        const f = r.fileName;
+        if (map[r.Answer_IsDupe]) map[r.Answer_IsDupe][f]++;
+        const res = REASON_MAPPING[r.Answer_Reason] ?? null;
+        if (res && map[res]) map[res][f]++;
+    });
+    draw(["Outcomes", ...fileNames], OUTPUT_KEYS.map(k => [k, ...fileNames.map(f => map[k][f])]), "table-stats");
+}
+
+function renderTruthSet() {
+    updateActive('btn-truth');
+    const cols = ['targetTruthSetWebsite','targetTruthSetTrademark','targetTruthSetProduct1','targetTruthSetProduct2','sourceTruthSetWebsite','sourceTruthSetTrademark','sourceTruthSetProduct1','sourceTruthSetProduct2'];
+    const uniques = ['sourceUBI', 'targetUBI', 'TaskID'];
+    const fileNames = [...new Set(rows.map(r => r.fileName))].sort();
+    const countsMap = {}; const uniqueMap = {};
+    cols.forEach(c => { countsMap[c] = {}; fileNames.forEach(f => countsMap[c][f] = 0); });
+    uniques.forEach(u => { uniqueMap[u] = {}; fileNames.forEach(f => uniqueMap[u][f] = new Set()); });
+    rows.forEach(r => {
+        const f = r.fileName;
+        cols.forEach(c => { if(r[c] && String(r[c]).trim() !== "") countsMap[c][f]++; });
+        uniques.forEach(u => { if(r[u] && String(r[u]).trim() !== "") uniqueMap[u][f].add(r[u]); });
+    });
+    const data = [...cols.map(c => [c, ...fileNames.map(f => countsMap[c][f])]), ...uniques.map(u => ["Unique " + u, ...fileNames.map(f => uniqueMap[u][f].size)])];
+    draw(["Metrics", ...fileNames], data, "table-stats");
+}
+
+function draw(headers, data, customClass = ""){
+    const div = document.getElementById("result");
+    if(customClass === "table-stats") div.innerHTML = "";
+    const t = document.createElement("table");
+    t.className = customClass;
+    const thead = document.createElement("thead");
+    const trh = document.createElement("tr");
+    headers.forEach(h => { const th = document.createElement("th"); th.textContent = h; trh.appendChild(th); });
+    thead.appendChild(trh); t.appendChild(thead);
+    const tbody = document.createElement("tbody");
+    data.forEach(row => {
+        const tr = document.createElement("tr");
+        row.forEach((c, index) => { 
+            const td = document.createElement("td"); 
+            td.textContent = c; 
+            if (customClass === "table-errors" && headers[index] === "wrong") td.style.color = "#ff4444";
+            if (customClass === "table-errors" && headers[index] === "correct") td.style.color = "#00ff88";
+
+            td.onclick = function(e) {
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(this);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                e.stopPropagation();
+            };
+            tr.appendChild(td); 
+        });
+        tbody.appendChild(tr);
+    });
+    t.appendChild(tbody); div.appendChild(t);
+}
+
+function copier(){
+    const t = document.querySelector("#result table");
+    if (!t) return;
+    const text = [...t.querySelectorAll("tr")].map(r => [...r.children].map(c => c.innerText).join("\t")).join("\n");
+    navigator.clipboard.writeText(text);
+    alert("✅ Données copiées !");
+}
+//
+// Nettoie les données de 'rows' pour les erreurs de format
+function appliquerCorrection() {
+    rows.forEach(r => {
+        if (r.Answer_Reason) {
+            let val = r.Answer_Reason.trim();
+            // 1. Supprime les espaces
+            val = val.replace(/\s+/g, '');
+            // 2. Remplace ; par ,
+            val = val.replace(/;/g, ',');
+            // 3. Supprime les doubles virgules ou points-virgules
+            val = val.replace(/,,+/g, ',').replace(/;;+/g, ';');
+            // 4. Corrige les doubles ""
+            val = val.replace(/""/g, '"');
+            // 5. Corrige les doubles crochets [[ ou ]]
+            val = val.replace(/\[\[/g, '[').replace(/\]\]/g, ']');
+            
+            r.Answer_Reason = val;
+        }
+    });
+    // Relancer les calculs et rafraîchir l'affichage
+    calculateErrors();
+    renderErreursFind();
+    alert("✅ Corrections de format appliquées sur les données chargées !");
+}
+
+// Génère un fichier CSV à partir des données corrigées
+function telechargerCorriger() {
+    if (rows.length === 0) return;
+    const csv = Papa.unparse(rows);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "export_corrige.csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+//
+// Fonction pour normaliser l'ordre des éléments dans la chaîne de caractères
+function normalize(reason) {
+    try {
+        // On transforme la string '["B","A"]' en vrai tableau JS ["B","A"]
+        let arr = JSON.parse(reason);
+        if (Array.isArray(arr)) {
+            // On trie par ordre alphabétique et on reconstruit la string
+            return JSON.stringify(arr.sort());
+        }
+    } catch (e) {
+        return reason; // Si ce n'est pas du JSON valide, on rend le texte brut
+    }
+    return reason;
+}
+
+// 2. Mise à jour de la fonction de recherche
+function findCorrectDupe(reason) {
+    if (!reason) return "UNKNOWN";
+    
+    // On normalise la raison entrante
+    const normalizedReason = normalize(reason.trim());
+
+    // On compare avec les listes, elles-mêmes normalisées
+    if (VALID_UNQ_LIST.map(r => normalize(r)).includes(normalizedReason)) return "UNIQUE";
+    if (VALID_DUPL_LIST.map(r => normalize(r)).includes(normalizedReason)) return "DUPLICATE";
+    if (VALID_CNC_LIST.map(r => normalize(r)).includes(normalizedReason)) return "COULD_NOT_CONCLUDE";
+
+    return "UNKNOWN";
+}
+// Dans calculateErrors(), modifie la partie correspondance :
+let normalizedVal = normalize(val);
+let isValidMapping = false;
+
+if (type === "UNIQUE") {
+    isValidMapping = VALID_UNQ_LIST.map(r => normalize(r)).includes(normalizedVal);
+} else if (type === "DUPLICATE") {
+    isValidMapping = VALID_DUPL_LIST.map(r => normalize(r)).includes(normalizedVal);
+} else if (type === "COULD_NOT_CONCLUDE") {
+    isValidMapping = VALID_CNC_LIST.map(r => normalize(r)).includes(normalizedVal);
+}
+</script>
+</body>
+</html>
