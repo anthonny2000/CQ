@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -212,30 +213,123 @@
 </main>
 
 <script>
+//regle de correction et detection d'erreur PROMPT
+/*la correspondance fonction , c'est le format et correction qui ne fonctione pas
+sauf erreur format
+tu verifie d'abord s'il y a d'autre symbole que [ ] , " ou espace
+si il y a espace tu suprime ensuite
+si il y a point . ou point-virgule ; tu les remplace par virgule , et ensuite tu lance le verif du format
+je vais de redifinir la regle  sur le guillemet alors, si elle est double tu la remplace d'abord par une seule et ensuite tu lance ses sequence de verif (idem pour les autre)
+elle dois tjr etr accompagne de ses symbole
+["
+"]
+","
+","
+
+autre que cela est une erreur
+ex: 
+X"X => remplacer par X","X
+X",X => remplacer par X","X
+X,"X => remplacer par X","X
+X""X => remplacer par X","X
+X""] => remplacer par X"] autre que cela remplacer par une seule
+[""X => remplacer par ["X
+
+
+de même pour les crochet [ et ]
+["
+"]
+autre que cela est une erreur 
+[X => remplacer par ["X
+X] => remplacer par X"]
+]] => remplacer par ]
+[[ => remplacer par [
+
+de même pour virgule ,
+tjr  ","
+autre que cela est une erreur 
+X,X  => remplacer par X","X
+X,"X  => remplacer par X","X
+X",X  => remplacer par X","X
+,]  => remplacer par "]
+[,  => remplacer par ["
+
+*/
+
+
 let rows = [];
 let dirtyData = []; 
 let correspErrors = []; 
 
-const OUTPUT_KEYS = ['COULD_NOT_CONCLUDE','DUPLICATE','UNIQUE',...new Set(Object.values(REASON_MAPPING))];
+// --- CONFIGURATION ---
+const OUTPUT_KEYS = [
+    "COULD_NOT_CONCLUDE",
+    '["ALL_SOURCE_ARTIFACTS_ARE_NOT_LOADING"]',
+    '["ALL_TARGET_ARTIFACTS_ARE_NOT_LOADING"]',
+    '["ALL_SOURCE_ARTIFACTS_ARE_NOT_LOADING","ALL_TARGET_ARTIFACTS_ARE_NOT_LOADING"]',
+    '["SOURCE_BRAND_HAS_NO_BRAND_INFO"]',
+    '["TARGET_BRAND_HAS_NO_BRAND_INFO"]',
+    '["SOURCE_BRAND_HAS_NO_BRAND_INFO","TARGET_BRAND_HAS_NO_BRAND_INFO"]',
+    '["SOURCE_IS_MIXED_UP_AND_TRUTH_SET_NOT_APPLICABLE"]',
+    '["TARGET_IS_MIXED_UP_AND_TRUTH_SET_NOT_APPLICABLE"]',
+    '["SOURCE_IS_MIXED_UP_AND_TRUTH_SET_NOT_APPLICABLE","TARGET_IS_MIXED_UP_AND_TRUTH_SET_NOT_APPLICABLE"]',
+    '["SOURCE_BRAND_TRADEMARK_IS_INCONCLUSIVE"]',
+    '["TARGET_BRAND_TRADEMARK_IS_INCONCLUSIVE"]',
+    '["SOURCE_BRAND_TRADEMARK_IS_INCONCLUSIVE","TARGET_BRAND_TRADEMARK_IS_INCONCLUSIVE"]',
+    "DUPLICATE",
+    '["DUPLICATES_BASED_ON_TRUTH_SET_WITH_MIXED_UP_SOURCE","DUPLICATES_BASED_ON_TRUTH_SET_WITH_MIXED_UP_TARGET"]',
+    '["DUPLICATES_BASED_ON_TRUTH_SET_WITH_MIXED_UP_SOURCE"]',
+    '["DUPLICATES_BASED_ON_TRUTH_SET_WITH_MIXED_UP_TARGET"]',
+    '["DUPLICATES"]',
+    "UNIQUE",
+    '["COMPLETELY_DIFFERENT"]',
+    '["COMPLETELY_DIFFERENT_AND_SOURCE_HAS_MIXED_UP_ARTIFACTS","COMPLETELY_DIFFERENT_AND_TARGET_HAS_MIXED_UP_ARTIFACTS"]',
+    '["COMPLETELY_DIFFERENT_AND_SOURCE_HAS_MIXED_UP_ARTIFACTS"]',
+    '["COMPLETELY_DIFFERENT_AND_TARGET_HAS_MIXED_UP_ARTIFACTS"]',
+    '["COMPLETELY_DIFFERENT_BASED_ON_TRUTH_SET_WITH_MIXED_UP_SOURCE","COMPLETELY_DIFFERENT_BASED_ON_TRUTH_SET_WITH_MIXED_UP_TARGET"]',
+    '["COMPLETELY_DIFFERENT_BASED_ON_TRUTH_SET_WITH_MIXED_UP_SOURCE"]',
+    '["COMPLETELY_DIFFERENT_BASED_ON_TRUTH_SET_WITH_MIXED_UP_TARGET"]',
+    '["HOMONYMS"]',
+    '["HOMONYMS_BASED_ON_TRUTH_SET_WITH_MIXED_UP_SOURCE","HOMONYMS_BASED_ON_TRUTH_SET_WITH_MIXED_UP_TARGET"]',
+    '["HOMONYMS_BASED_ON_TRUTH_SET_WITH_MIXED_UP_SOURCE"]',
+    '["HOMONYMS_BASED_ON_TRUTH_SET_WITH_MIXED_UP_TARGET"]',
+    '["RELATED_BRANDS"]',
+    '["RELATED_BASED_ON_TRUTH_SET_WITH_MIXED_UP_SOURCE"]',
+    '["RELATED_BASED_ON_TRUTH_SET_WITH_MIXED_UP_TARGET"]',
+    '["RELATED_BASED_ON_TRUTH_SET_WITH_MIXED_UP_SOURCE","RELATED_BASED_ON_TRUTH_SET_WITH_MIXED_UP_TARGET"]'
+];
 
+
+// --- INITIALISATION UI ---
 const sidebar = document.querySelector(".sidebar");
 const sidebarOpen = document.querySelector("#sidebarOpen");
-sidebarOpen.addEventListener("click", () => sidebar.classList.toggle("close"));
+if (sidebarOpen) {
+    sidebarOpen.addEventListener("click", () => sidebar.classList.toggle("close"));
+}
 
+// --- CHARGEMENT DES FICHIERS ---
 document.getElementById("fileInput").addEventListener("change", async e => {
     rows = [];
     const files = e.target.files;
     const totalFiles = files.length;
     const navbar = document.querySelector(".navbar");
+    const progressText = document.getElementById("progress");
     
-    document.getElementById("progress").textContent = "Chargement...";
+    // Couleur Fluo
+    const fluoColor = "#00fbff"; 
+    const darkBg = "var(--bg-panel)";
 
+    progressText.textContent = "Lecture des fichiers...";
+    navbar.style.boxShadow = `0 0 15px ${fluoColor}`; // Effet de lueur fluo
+
+    // --- PHASE 1 : CHARGEMENT (0% -> 70%) ---
     for (let i = 0; i < totalFiles; i++) {
         const file = files[i];
+        const loadPercent = Math.round(((i + 1) / totalFiles) * 70);
         
-        // Mise à jour de la barre de progression (background de la navbar)
-        const percent = ((i + 1) / totalFiles) * 100;
-        navbar.style.background = `linear-gradient(90deg, #2e2e60 ${percent}%, var(--bg-panel) ${percent}%)`;
+        // Application du dégradé Bleu Ciel Fluo
+        navbar.style.background = `linear-gradient(90deg, ${fluoColor} ${loadPercent}%, ${darkBg} ${loadPercent}%)`;
+        progressText.textContent = `Chargement : ${Math.round((i+1)/totalFiles*100)}%`;
 
         let dataToPush = [];
         if (file.name.endsWith(".xlsx")) {
@@ -252,15 +346,47 @@ document.getElementById("fileInput").addEventListener("change", async e => {
         rows.push(...dataToPush);
     }
 
-    // Une fois terminé, on remet le fond normal ou on laisse à 100%
-    navbar.style.background = `var(--bg-panel)`;
+    // --- PHASE 2 : TRAITEMENT (70% -> 100%) ---
+    progressText.textContent = "Analyse et rendu des résultats...";
     
-    calculateErrors();
-    document.getElementById("progress").textContent = `${rows.length} lignes chargées.`;
-    renderGlobal();
+    setTimeout(() => {
+        // Avancement manuel pour simuler le calcul
+        navbar.style.background = `linear-gradient(90deg, ${fluoColor} 85%, ${darkBg} 85%)`;
+        calculateErrors();
+        
+        navbar.style.background = `linear-gradient(90deg, ${fluoColor} 100%, ${darkBg} 100%)`;
+        renderGlobal(); 
+
+        // Reset final
+        setTimeout(() => {
+            navbar.style.background = darkBg;
+            navbar.style.boxShadow = "none"; // On enlève la lueur
+            progressText.textContent = `${rows.length} lignes prêtes.`;
+        }, 800);
+    }, 50);
 });
 
-// --- LOGIQUE DE DÉTECTION DES ERREURS ---
+
+// --- UTILITAIRE DE NORMALISATION (ORDRE LOGO/URL) ---
+function normalize(reason) {
+    if (!reason) return "";
+    try {
+        let clean = reason.trim();
+        if (clean.startsWith("'") && clean.endsWith("'")) clean = clean.slice(1, -1);
+        
+        // On tente de parser le JSON (ex: ["LOGO","URL"])
+        let arr = JSON.parse(clean);
+        if (Array.isArray(arr)) {
+            // On trie alphabétiquement pour que ["URL","LOGO"] soit égal à ["LOGO","URL"]
+            return JSON.stringify(arr.map(s => String(s).trim()).sort());
+        }
+    } catch (e) {
+        return reason.trim(); 
+    }
+    return reason.trim();
+}
+
+// --- LOGIQUE DE DÉTECTION ---
 function calculateErrors() {
     dirtyData = [];
     correspErrors = [];
@@ -271,118 +397,223 @@ function calculateErrors() {
         
         if (val === "" && type === "") return;
 
-        // 1. Détection Erreurs de Format
         let isDirty = false;
         if (val !== "") {
-            if (val.includes(';') || val.includes(' ')) isDirty = true;
-            if (val.includes(',') && !val.includes('","')) isDirty = true;
-            if (val.includes('""')) isDirty = true;
-            if (val.startsWith('[[') || !val.startsWith('[') || !val.endsWith(']')) isDirty = true;
-        }
-        if (isDirty) {
-            dirtyData.push({ file: r.fileName, taskId: r.TaskID || "N/A", val: val });
-        }
+            // RÈGLE 1: Caractères interdits ou parasites
+            if (/[.;\s]/.test(val)) isDirty = true;
+            
+            // RÈGLE 2: Doublons de symboles (,, ou "" ou [[ ou ]])
+            if (val.includes(',,') || val.includes('""') || val.includes('[[') || val.includes(']]')) isDirty = true;
 
-        // 2. Détection Erreurs de Correspondance
-        let isValidMapping = false;
-        if (type === "UNIQUE") {
-            isValidMapping = typeof VALID_UNQ_LIST !== 'undefined' && VALID_UNQ_LIST.includes(val);
-        } else if (type === "DUPLICATE") {
-            isValidMapping = typeof VALID_DUPL_LIST !== 'undefined' && VALID_DUPL_LIST.includes(val);
-        } else if (type === "COULD_NOT_CONCLUDE") {
-            isValidMapping = typeof VALID_CNC_LIST !== 'undefined' && VALID_CNC_LIST.includes(val);
+            // RÈGLE 3: Structure des extrémités
+            if (!val.startsWith('["') || !val.endsWith('"]')) isDirty = true;
+
+            // RÈGLE 4: Symboles orphelins à l'intérieur
+            let core = val.substring(2, val.length - 2);
+            // Si on enlève le motif valide "," il ne doit rester ni " ni ,
+            let checkInternal = core.split('","').join('');
+            if (checkInternal.includes('"') || checkInternal.includes(',')) isDirty = true;
         }
+        
+        if (isDirty) dirtyData.push({ file: r.fileName, taskId: r.TaskID || "N/A", val: val });
+
+        // --- Correspondance (Mismatch) ---
+        const normVal = normalize(val);
+        const check = (list) => list.map(item => normalize(item)).includes(normVal);
+        let isValidMapping = false;
+        if (type === "UNIQUE") isValidMapping = check(VALID_UNQ_LIST);
+        else if (type === "DUPLICATE") isValidMapping = check(VALID_DUPL_LIST);
+        else if (type === "COULD_NOT_CONCLUDE") isValidMapping = check(VALID_CNC_LIST);
 
         if (!isValidMapping && type !== "" && val !== "") {
-            let correctType = "UNKNOWN";
-            if (typeof VALID_UNQ_LIST !== 'undefined' && VALID_UNQ_LIST.includes(val)) correctType = "UNIQUE";
-            else if (typeof VALID_DUPL_LIST !== 'undefined' && VALID_DUPL_LIST.includes(val)) correctType = "DUPLICATE";
-            else if (typeof VALID_CNC_LIST !== 'undefined' && VALID_CNC_LIST.includes(val)) correctType = "COULD_NOT_CONCLUDE";
-
-            correspErrors.push({
-                taskId: r.TaskID || "N/A",
-                wrong: type,
-                correct: correctType,
-                reason: val
-            });
+            let corr = "UNKNOWN";
+            if (check(VALID_UNQ_LIST)) corr = "UNIQUE";
+            else if (check(VALID_DUPL_LIST)) corr = "DUPLICATE";
+            else if (check(VALID_CNC_LIST)) corr = "COULD_NOT_CONCLUDE";
+            correspErrors.push({ taskId: r.TaskID || "N/A", wrong: type, correct: corr, reason: val });
         }
     });
-
     updateBadges();
 }
 
-function updateBadges() {
-    const bFormat = document.getElementById("side-error-badge");
-    if (bFormat) {
-        bFormat.textContent = dirtyData.length;
-        bFormat.style.display = dirtyData.length > 0 ? "block" : "none";
+function appliquerCorrection() {
+    rows.forEach(r => {
+        if (r.Answer_Reason) {
+            let v = r.Answer_Reason.trim();
+
+            // --- ÉTAPE 1 : Nettoyage des caractères parasites ---
+            v = v.replace(/\s+/g, ''); // Supprime tous les espaces
+            v = v.replace(/[.;]+/g, ','); // . et ; deviennent des virgules
+
+            // --- ÉTAPE 2 : Gestion des cas de guillemets doubles et extrémités ---
+            // [" " X => ["X
+            v = v.replace(/^\["+/g, '["');
+            // X " " ] => X"]
+            v = v.replace(/"+\]$/g, '"]');
+            // [[ ou ]] => [ ou ]
+            v = v.replace(/\[+/g, '[').replace(/\]+/g, ']');
+
+            // --- ÉTAPE 3 : Extraction du contenu ---
+            // On enlève les crochets et guillemets de bordure pour travailler sur le texte pur
+            let content = v.replace(/^\["/, '').replace(/"\]$/, '');
+            // On enlève aussi les crochets simples s'ils traînent encore
+            content = content.replace(/[\[\]]/g, '');
+
+            // --- ÉTAPE 4 : Séparation et Reconstruction (La règle du X"X, X"",X etc.) ---
+            // On considère que n'importe quelle suite de " ou , (ex: "", ou ", ou ,") 
+            // est en fait une simple séparation entre deux mots.
+            let elements = content.split(/["",]+/).filter(el => el !== "");
+
+            // --- ÉTAPE 5 : Formatage Strict ---
+            // JSON.stringify recrée parfaitement le format ["MOT1","MOT2"]
+            // avec une seule virgule et des guillemets doubles là où il faut.
+            r.Answer_Reason = JSON.stringify(elements);
+        }
+    });
+    
+    calculateErrors(); // Relance la détection pour vider dirtyData
+    renderErreursFind(); // Rafraîchit le tableau
+    alert("✅ Correction effectuée selon les nouvelles règles de guillemets.");
+}
+
+// --- ACTIONS DE CORRECTION ---
+function appliquerCorrection() {
+    rows.forEach(r => {
+        if (r.Answer_Reason) {
+            let v = r.Answer_Reason.trim();
+
+            // 1. SEQUENCE DE PRE-NETTOYAGE
+            v = v.replace(/\s+/g, '');          // Supprime les espaces
+            v = v.replace(/[.;]+/g, ',');       // . et ; deviennent ,
+            v = v.replace(/"{2,}/g, '"');       // "" devient "
+            v = v.replace(/\[{2,}/g, '[');      // [[ devient [
+            v = v.replace(/\]{2,}/g, ']');      // ]] devient ]
+
+            // 2. RÉPARATION DES EXTRÉMITÉS (Crochets et virgules traînantes)
+            // Cas : [, => ["  et  ,] => "]
+            v = v.replace(/^\[,/g, '["').replace(/,\]$/g, '"]');
+            
+            // Si c'est juste du texte sans crochets : X => ["X"]
+            if (!v.startsWith('["')) {
+                if (v.startsWith('[')) v = v.replace('[', '["');
+                else v = '["' + v;
+            }
+            if (!v.endsWith('"]')) {
+                if (v.endsWith(']')) v = v.replace(']', '"]');
+                else v = v + '"]';
+            }
+
+            // 3. RÉPARATION INTERNE (Règle X"X, X",X, X,X -> X","X)
+            // On extrait ce qui est entre les symboles [" et "]
+            let core = v.substring(2, v.length - 2);
+
+            // On traite tous les séparateurs cassés (mélange de " et ,)
+            // L'idée est de réduire n'importe quelle suite de " et , en une seule virgule
+            core = core.replace(/["",]+/g, ',');
+
+            // On découpe par cette virgule pour avoir les mots propres
+            let elements = core.split(',').filter(el => el !== "");
+
+            // 4. RECONSTRUCTION JSON STRICTE
+            // JSON.stringify transformera ['LOGO', 'URL'] en ["LOGO","URL"]
+            // Cela garantit que chaque mot est entouré de " et séparé par ","
+            r.Answer_Reason = JSON.stringify(elements);
+        }
+    });
+
+    calculateErrors();
+    renderErreursFind();
+    alert("✅ Correction effectuée selon les règles de reconstruction.");
+}
+
+
+function telechargerCorriger() {
+    if (rows.length === 0) {
+        alert("Aucune donnée à exporter.");
+        return;
     }
-    const bCorresp = document.getElementById("side-corresp-badge");
-    if (bCorresp) {
-        bCorresp.textContent = correspErrors.length;
-        bCorresp.style.display = correspErrors.length > 0 ? "block" : "none";
-    }
+
+    // On utilise Papa.unparse avec le délimiteur tabulation '\t'
+    const tsv = Papa.unparse(rows, {
+        delimiter: "\t",
+        header: true
+    });
+
+    // Création du Blob avec le type MIME pour TSV
+    const blob = new Blob([tsv], { type: 'text/tab-separated-values;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement("a");
+    link.href = url;
+    
+    // Nom du fichier avec extension .tsv
+    const timestamp = new Date().toISOString().slice(0,10);
+    link.download = `export_corrige_${timestamp}.tsv`;
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 // --- FONCTIONS DE RENDU ---
-function updateActive(id) {
-    document.querySelectorAll('.nav_link').forEach(a => a.classList.remove('active'));
-    if(id) document.getElementById(id).classList.add('active');
+function updateBadges() {
+    const bFormat = document.getElementById("side-error-badge");
+    const bCorresp = document.getElementById("side-corresp-badge");
+    if (bFormat) { bFormat.textContent = dirtyData.length; bFormat.style.display = dirtyData.length > 0 ? "block" : "none"; }
+    if (bCorresp) { bCorresp.textContent = correspErrors.length; bCorresp.style.display = correspErrors.length > 0 ? "block" : "none"; }
 }
 
 function renderGlobal() {
     updateActive('btn-global');
     const total = rows.length;
     const counts = {};
+    
+    // Initialisation
     OUTPUT_KEYS.forEach(k => counts[k] = 0);
+
     rows.forEach(r => {
-        if (counts[r.Answer_IsDupe] !== undefined) counts[r.Answer_IsDupe]++;
-        const res = REASON_MAPPING[r.Answer_Reason] ?? null;
-        if (res && counts[res] !== undefined) counts[res]++;
+        const type = r.Answer_IsDupe;
+        const reason = r.Answer_Reason;
+
+        // On compte le type (COULD_NOT_CONCLUDE, etc.)
+        if (counts[type] !== undefined) counts[type]++;
+        // On compte la raison exacte (la chaîne ["..."])
+        if (counts[reason] !== undefined) counts[reason]++;
     });
-    const tableData = Object.keys(counts).map(k => [k, counts[k], total ? `${(counts[k]/total*100).toFixed(1)}%` : "0%"]);
+
+    const tableData = OUTPUT_KEYS.map(k => [
+        k, 
+        counts[k], 
+        total ? `${((counts[k] / total) * 100).toFixed(1)}%` : "0%"
+    ]);
+    
     tableData.push(["Grand Total", total, "100%"]);
     draw(["Outcomes", "Count", "%"], tableData, "table-stats");
 }
 
-//ntégrer les boutons et créer une logique de "nettoyage"
+
 function renderErreursFind() {
     updateActive('btn-erreurs');
     const resultDiv = document.getElementById("result");
-    
-    // Header avec boutons
-    let html = `
+    resultDiv.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
             <h3>⚠️ Erreurs de format (${dirtyData.length})</h3>
             <div>
                 <button class="correction" onclick="appliquerCorrection()" style="margin-right:10px;">✨ Nettoyer Format</button>
-                <button class="correction" onclick="telechargerCorriger()" style="background:#2e2e60;">📥 Télécharger CSV Corrigé</button>
+                <button class="correction" onclick="telechargerCorriger()" style="background:#2e2e60;">📥 Télécharger TSV</button>
             </div>
         </div>
     `;
-    
-    resultDiv.innerHTML = html;
-
-    if (dirtyData.length === 0) {
-        resultDiv.innerHTML += "<p>Aucune erreur de format détectée.</p>";
-        return;
-    }
-    
-    draw(["TaskID", "Error Value", "Fichier Source"], dirtyData.map(d => [d.taskId, d.val, d.file]), "table-errors");
+    if (dirtyData.length === 0) { resultDiv.innerHTML += "<p>Aucune erreur détectée.</p>"; return; }
+    draw(["TaskID", "answerReason", "Source"], dirtyData.map(d => [d.taskId, d.val, d.file]), "table-errors");
 }
-
 
 function renderCorrespondence() {
     updateActive('btn-correspondence');
     const resultDiv = document.getElementById("result");
     resultDiv.innerHTML = `<h3 style="margin-bottom:15px;">🔄 Erreurs de Correspondance (${correspErrors.length})</h3>`;
-    if (correspErrors.length === 0) {
-        resultDiv.innerHTML += "<p>Aucun mismatch détecté.</p>";
-        return;
-    }
-    const headers = ["TaskID", "wrong", "correct", "reason"];
-    const data = correspErrors.map(err => [err.taskId, err.wrong, err.correct, err.reason]);
-    draw(headers, data, "table-errors");
+    if (correspErrors.length === 0) { resultDiv.innerHTML += "<p>Toutes les correspondances sont correctes.</p>"; return; }
+    draw(["TaskID", "wrong_answerDupe", "correct_answerDupe", "answerReason"], correspErrors.map(err => [err.taskId, err.wrong, err.correct, err.reason]), "table-errors");
 }
 
 function renderByWorker(){
@@ -408,14 +639,34 @@ function renderByBatch() {
     updateActive('btn-batch');
     const fileNames = [...new Set(rows.map(r => r.fileName))].sort();
     const map = {};
-    OUTPUT_KEYS.forEach(k => { map[k] = {}; fileNames.forEach(f => map[k][f] = 0); });
+
+    // Initialisation du dictionnaire à double entrée
+    OUTPUT_KEYS.forEach(k => { 
+        map[k] = {}; 
+        fileNames.forEach(f => map[k][f] = 0); 
+    });
+
     rows.forEach(r => {
         const f = r.fileName;
-        if (map[r.Answer_IsDupe]) map[r.Answer_IsDupe][f]++;
-        const res = REASON_MAPPING[r.Answer_Reason] ?? null;
-        if (res && map[res]) map[res][f]++;
+        const type = r.Answer_IsDupe;
+        const reason = r.Answer_Reason;
+
+        if (map[type]) map[type][f]++;
+        if (map[reason]) map[reason][f]++;
     });
-    draw(["Outcomes", ...fileNames], OUTPUT_KEYS.map(k => [k, ...fileNames.map(f => map[k][f])]), "table-stats");
+
+    const tableData = OUTPUT_KEYS.map(k => [
+        k, 
+        ...fileNames.map(f => map[k][f])
+    ]);
+
+    // Ligne Grand Total
+    const totals = ["Grand Total", ...fileNames.map(f => {
+        return rows.filter(r => r.fileName === f).length;
+    })];
+    tableData.push(totals);
+
+    draw(["Outcomes", ...fileNames], tableData, "table-stats");
 }
 
 function renderTruthSet() {
@@ -435,6 +686,7 @@ function renderTruthSet() {
     draw(["Metrics", ...fileNames], data, "table-stats");
 }
 
+
 function draw(headers, data, customClass = ""){
     const div = document.getElementById("result");
     if(customClass === "table-stats") div.innerHTML = "";
@@ -450,9 +702,11 @@ function draw(headers, data, customClass = ""){
         row.forEach((c, index) => { 
             const td = document.createElement("td"); 
             td.textContent = c; 
-            if (customClass === "table-errors" && headers[index] === "wrong") td.style.color = "#ff4444";
-            if (customClass === "table-errors" && headers[index] === "correct") td.style.color = "#00ff88";
-
+            // Couleurs pour les erreurs de correspondance
+            if (customClass === "table-errors" && headers[index] === "wrong_answerDupe") td.style.color = "#ff4444";
+            if (customClass === "table-errors" && headers[index] === "correct_answerDupe") td.style.color = "#00ff88";
+            
+            // Sélection au clic
             td.onclick = function(e) {
                 const selection = window.getSelection();
                 const range = document.createRange();
@@ -468,6 +722,14 @@ function draw(headers, data, customClass = ""){
     t.appendChild(tbody); div.appendChild(t);
 }
 
+function updateActive(id) {
+    document.querySelectorAll('.nav_link').forEach(a => a.classList.remove('active'));
+    if(id) {
+        const el = document.getElementById(id);
+        if(el) el.classList.add('active');
+    }
+}
+
 function copier(){
     const t = document.querySelector("#result table");
     if (!t) return;
@@ -475,87 +737,7 @@ function copier(){
     navigator.clipboard.writeText(text);
     alert("✅ Données copiées !");
 }
-//
-// Nettoie les données de 'rows' pour les erreurs de format
-function appliquerCorrection() {
-    rows.forEach(r => {
-        if (r.Answer_Reason) {
-            let val = r.Answer_Reason.trim();
-            // 1. Supprime les espaces
-            val = val.replace(/\s+/g, '');
-            // 2. Remplace ; par ,
-            val = val.replace(/;/g, ',');
-            // 3. Supprime les doubles virgules ou points-virgules
-            val = val.replace(/,,+/g, ',').replace(/;;+/g, ';');
-            // 4. Corrige les doubles ""
-            val = val.replace(/""/g, '"');
-            // 5. Corrige les doubles crochets [[ ou ]]
-            val = val.replace(/\[\[/g, '[').replace(/\]\]/g, ']');
-            
-            r.Answer_Reason = val;
-        }
-    });
-    // Relancer les calculs et rafraîchir l'affichage
-    calculateErrors();
-    renderErreursFind();
-    alert("✅ Corrections de format appliquées sur les données chargées !");
-}
-
-// Génère un fichier CSV à partir des données corrigées
-function telechargerCorriger() {
-    if (rows.length === 0) return;
-    const csv = Papa.unparse(rows);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", "export_corrige.csv");
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-//
-// Fonction pour normaliser l'ordre des éléments dans la chaîne de caractères
-function normalize(reason) {
-    try {
-        // On transforme la string '["B","A"]' en vrai tableau JS ["B","A"]
-        let arr = JSON.parse(reason);
-        if (Array.isArray(arr)) {
-            // On trie par ordre alphabétique et on reconstruit la string
-            return JSON.stringify(arr.sort());
-        }
-    } catch (e) {
-        return reason; // Si ce n'est pas du JSON valide, on rend le texte brut
-    }
-    return reason;
-}
-
-// 2. Mise à jour de la fonction de recherche
-function findCorrectDupe(reason) {
-    if (!reason) return "UNKNOWN";
-    
-    // On normalise la raison entrante
-    const normalizedReason = normalize(reason.trim());
-
-    // On compare avec les listes, elles-mêmes normalisées
-    if (VALID_UNQ_LIST.map(r => normalize(r)).includes(normalizedReason)) return "UNIQUE";
-    if (VALID_DUPL_LIST.map(r => normalize(r)).includes(normalizedReason)) return "DUPLICATE";
-    if (VALID_CNC_LIST.map(r => normalize(r)).includes(normalizedReason)) return "COULD_NOT_CONCLUDE";
-
-    return "UNKNOWN";
-}
-// Dans calculateErrors(), modifie la partie correspondance :
-let normalizedVal = normalize(val);
-let isValidMapping = false;
-
-if (type === "UNIQUE") {
-    isValidMapping = VALID_UNQ_LIST.map(r => normalize(r)).includes(normalizedVal);
-} else if (type === "DUPLICATE") {
-    isValidMapping = VALID_DUPL_LIST.map(r => normalize(r)).includes(normalizedVal);
-} else if (type === "COULD_NOT_CONCLUDE") {
-    isValidMapping = VALID_CNC_LIST.map(r => normalize(r)).includes(normalizedVal);
-}
 </script>
+
 </body>
 </html>
