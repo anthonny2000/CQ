@@ -37,6 +37,14 @@
   <button id="prevBtn">⬅ Précédent</button>
   <button id="nextBtn">➡ Suivant</button>
 
+  <div class="list-wrapper">
+    <button id="liste">📋 Liste</button>
+    <div id="listPanel" class="panel collapsed bottom-deploy">
+      <h3 class="list-title">Synthèse Sources</h3>
+      <div id="listContent"></div>
+    </div>
+  </div>
+
   <div class="stats-group" style="display: inline-flex; align-items: center;">
     <span id="counter" title="Position">0 / 0</span>
     <span id="taskProgress" title="Sources complétées sur ce Target">0 / 0</span>
@@ -291,6 +299,25 @@ $("#fileInput").on("change", function() {
 $(document).on("click", "#submitBtn", function() {
   const sourceCount = $("#viewer .top-row .card").length - 1;
   if (sourceCount <= 0) return;
+
+  // Vérification des champs vides
+  let missingFields = false;
+  $("#viewer .bottom-row .card.bottom").not(":first").each(function() {
+      const dupe = $(this).find(".qa-input-dupe").val()?.trim();
+      const reason = $(this).find(".qa-input-reason").val()?.trim();
+      if (!dupe || !reason) {
+          missingFields = true;
+          $(this).css("border", "2px solid #ff0044");
+      } else {
+          $(this).css("border", "");
+      }
+  });
+
+  if (missingFields) {
+      alert("⚠️ Erreur : Tous les champs 'IsDupe' et 'Reason' doivent être remplis !");
+      return;
+  }
+
   let batchResults = [];
   const targetUBI = groupedData[currentIndex].target.targetUBI;
 
@@ -461,51 +488,122 @@ function applyHighlight() {
 $("#historyBtn").click(() => $("#historyModal").toggle());
 $("#closeHistory").click(() => $("#historyModal").hide());
 
-		/* couleur de bordures spécifiques pour answerDupe OL*/
+		/* couleur de bordures spécifiques pour answerDupe */
 function applyStatusColors() {
-    const targetElement = $("#viewer > div.bottom-row > div > div:nth-child(5) > div.line");
-    
-    targetElement.each(function() {
-        const text = $(this).text().trim();
+    // Cibler uniquement les cartes SOURCE (pas la première carte TARGET REFERENCE)
+    // On cherche le bloc Answer_IsDupe par son attribut data-type, plus fiable que nth-child
+    $("#viewer .bottom-row .card.bottom").not(":first").each(function() {
+        const dupeBlock = $(this).find(".block[data-type='Answer_IsDupe'] .line").first();
+        if (!dupeBlock.length) return;
         
-        // On retire les anciennes classes au cas où
-        $(this).removeClass("border-marron border-marine border-violet border-red border-green");
+        const text = dupeBlock.text().trim();
+        dupeBlock.removeClass("border-marron border-marine border-violet border-red border-green");
 
-			 if (text.includes("COULD_NOT_CONCLUDE"))	 {$(this).addClass("border-marron");} 
-		else if (text.includes("DUPLICATE"))			 {$(this).addClass("border-marine");}
-		else if (text.includes("UNIQUE"))				 {$(this).addClass("border-violet");}
-		else if (text.includes("SOURCE"))			 {$(this).addClass("border-red");}
-		else if (text.includes("TARGET"))			 {$(this).addClass("border-green");}
+             if (text.includes("COULD_NOT_CONCLUDE")) { dupeBlock.addClass("border-marron"); }
+        else if (text.includes("DUPLICATE"))          { dupeBlock.addClass("border-marine"); }
+        else if (text.includes("UNIQUE"))             { dupeBlock.addClass("border-violet"); }
+        else if (text.includes("SOURCE"))             { dupeBlock.addClass("border-red"); }
+        else if (text.includes("TARGET"))             { dupeBlock.addClass("border-green"); }
     });
 }
 
 function applySourceTargetGlow() {
-    // Cible le 6ème bloc (généralement le texte long/Product Data)
-    const lines = $("#viewer > div.bottom-row > div > div:nth-child(6) > div.line");
+    // 1. Cible le bloc Answer_Reason dans les cartes SOURCE (pas la carte TARGET REFERENCE)
+    $("#viewer .bottom-row .card.bottom").not(":first").each(function() {
+        const reasonBlock = $(this).find(".block[data-type='Answer_Reason'] .line").first();
+        if (!reasonBlock.length) return;
 
-    lines.each(function() {
-        const content = $(this).text().toLowerCase();
-        
-        // Nettoyage des classes précédentes
+        const content = reasonBlock.text().toLowerCase();
+        reasonBlock.removeClass("glow-source glow-target");
+
+        if (content.includes('source'))      { reasonBlock.addClass("glow-source"); }
+        else if (content.includes('target')) { reasonBlock.addClass("glow-target"); }
+    });
+
+    // 2. Cible les items de la liste synthèse
+    const listItems = $("#listContent .summary-item");
+    listItems.each(function() {
+        const responseText = $(this).find(".summary-text").text().toLowerCase();
         $(this).removeClass("glow-source glow-target");
-
-        if (content.includes('source')) {
-            $(this).addClass("glow-source");
-        } 
-        else if (content.includes('target')) {
-            $(this).addClass("glow-target");
-        }
+        if (responseText.includes('source'))      { $(this).addClass("glow-source"); }
+        else if (responseText.includes('target')) { $(this).addClass("glow-target"); }
     });
 }
 
 
-</script>
+/*11/04/2026 - 13:17 - BOUTON FLOTTANT⚙️*/
+$(document).ready(function() {
 
-<div id="floatingPanel">
-  <button id="submitBtn">Submit</button>
-  <button id="exportBtn">Export tsv</button>
-  <button id="copyBtn">Copy TSV</button>
-  <button id="resetBtn">RESET</button>
+    // === BOUTON LISTE ===
+    $("#liste").click(function(e) {
+        e.stopPropagation();
+        const panel = $("#listPanel");
+
+        if (panel.hasClass("collapsed")) {
+            const container = $("#listContent");
+            container.empty();
+
+            $("#viewer .bottom-row > div.card").each(function(index) {
+                if (index === 0) return; // Ignore la carte TARGET REFERENCE
+
+                const title = $(`#viewer .top-row > div:nth-child(${index + 1}) strong`).text();
+                const $card = $(this);
+                const text = $card.find(".block[data-type='Answer_Reason'] .line").first().text().trim();
+
+                if (title) {
+                    const $item = $(`
+                        <div class="summary-item" data-index="${index}">
+                            <span class="summary-number">${title}</span>
+                            <div class="summary-text">${text || "<i>Vide</i>"}</div>
+                        </div>
+                    `);
+
+                    $item.on('click', function() {
+                        const targetCard = document.querySelector(`#viewer .bottom-row > div:nth-child(${index + 1})`);
+                        if (targetCard) {
+                            targetCard.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+                        }
+                    });
+
+                    container.append($item);
+                }
+            });
+
+            applySourceTargetGlow();
+        }
+
+        panel.toggleClass("collapsed");
+    });
+
+    // === BOUTON FLOTTANT ===
+    const mainBtn = document.getElementById('mainBtn');
+    const sidePanel = document.getElementById('sidePanel');
+
+    if (mainBtn && sidePanel) {
+        mainBtn.addEventListener('click', () => {
+            sidePanel.classList.toggle('collapsed');
+            mainBtn.classList.toggle('rotated');
+        });
+
+        // Fermer le menu après un clic sur une action (facultatif)
+        $(document).on("click", ".menu-btn", function() {
+            sidePanel.classList.add('collapsed');
+            mainBtn.classList.remove('rotated');
+        });
+    }
+});
+		</script>
+
+<div class="floating-container" id="floatingPanelContainer">
+    <button id="mainBtn" class="toggle-btn">+</button>
+
+    <div id="sidePanel" class="panel collapsed">
+        <h3 style="color: var(--primary); font-family: 'Orbitron'; font-size: 14px; margin-bottom: 15px;">Actions QA</h3>
+        <button id="submitBtn" class="menu-btn">🚀 Submit (Ctrl+Enter)</button>
+        <button id="exportBtn" class="menu-btn">💾 Export TSV</button>
+        <button id="copyBtn" class="menu-btn">📋 Copy TSV</button>
+        <button id="resetBtn" class="menu-btn" style="color: #ff7675;">🧹 Reset All</button>
+    </div>
 </div>
 
 </body>
