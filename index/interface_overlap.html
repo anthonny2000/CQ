@@ -398,13 +398,36 @@ function applySourceTargetGlow() {
 }
 
 
-</script>
+/*11/04/2026 - 13:17 - BOUTON FLOTTANT⚙️*/
+$(document).ready(function() {
+    const mainBtn = document.getElementById('mainBtn');
+    const sidePanel = document.getElementById('sidePanel');
 
-<div id="floatingPanel">
-  <button id="submitBtn">Submit Task</button>
-  <button id="exportBtn">Export TSV</button>
-  <button id="copyBtn">Copy TSV</button>
-  <button id="resetBtn">RESET</button>
+    if (mainBtn && sidePanel) {
+        mainBtn.addEventListener('click', () => {
+            sidePanel.classList.toggle('collapsed');
+            mainBtn.classList.toggle('rotated');
+        });
+
+        // Fermer le menu après un clic sur une action (facultatif)
+        $(document).on("click", ".menu-btn", function() {
+            sidePanel.classList.add('collapsed');
+            mainBtn.classList.remove('rotated');
+        });
+    }
+});
+		</script>
+
+<div class="floating-container" id="floatingPanelContainer">
+    <button id="mainBtn" class="toggle-btn">+</button>
+
+    <div id="sidePanel" class="panel collapsed">
+        <h3 style="color: var(--primary); font-family: 'Orbitron'; font-size: 14px; margin-bottom: 15px;">Actions QA</h3>
+        <button id="submitBtn" class="menu-btn">🚀 Submit (Ctrl+Enter)</button>
+        <button id="exportBtn" class="menu-btn">💾 Export TSV</button>
+        <button id="copyBtn" class="menu-btn">📋 Copy TSV</button>
+        <button id="resetBtn" class="menu-btn" style="color: #ff7675;">🧹 Reset All</button>
+    </div>
 </div>
 
 </body>
