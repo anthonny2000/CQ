@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>DATA-Extractor Pro</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+body { font-family:"Segoe UI",sans-serif; background:#0e0e1f; color:#e0e0ff; padding:2em; }
+        
+        /* AJOUT : Illumination subtile du titre */
+        h1 { 
+            text-align:center; 
+            color:#fff; 
+            text-shadow: 0 0 8px rgba(126, 255, 245, 0.7), 0 0 15px rgba(156, 39, 176, 0.5);
+        }
+
+        /* AJOUT : Ombre portée plus diffuse et lueur interne légère pour le conteneur */
+        .container { 
+            background:rgba(40,40,60,.85); 
+            border:2px solid #9c27b0; 
+            box-shadow: 0 0 25px rgba(156, 39, 176, 0.4), inset 0 0 10px rgba(156, 39, 176, 0.2);
+            border-radius:15px; 
+            padding:20px; 
+            margin-bottom: 20px;
+        }
+
+        input, button, select { margin:10px; padding:10px 20px; border-radius:8px; border:none; cursor:pointer; transition: 0.3s; }
+        
+        /* AJOUT : Ombre portée sur les boutons et inputs pour les décoller du fond */
+        input[type="file"], select {
+            background: rgba(26, 26, 46, 0.8);
+            color: #e0e0ff;
+            border: 1px solid #444;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        input[type="file"]:hover, select:hover {
+            border-color: #7efff5;
+            box-shadow: 0 0 10px rgba(126, 255, 245, 0.3);
+        }
+
+        /* AJOUT : Lueur au survol sur les boutons (effet illumination) */
+        button { 
+            background:linear-gradient(135deg,#9d50bb,#4776e6); 
+            color:#fff; 
+            font-weight:700; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        button:hover { 
+            opacity: 1; /* Retiré l'opacity 0.8 pour privilégier la lueur */
+            transform: scale(1.05); 
+            box-shadow: 0 0 15px rgba(126, 255, 245, 0.5), 0 0 30px rgba(156, 39, 176, 0.3);
+        }
+
+        #progress { text-align:center; margin-top:10px; white-space:pre-line; font-family: monospace; }
+        
+        /* AJOUT : Lueur autour de la barre de progression */
+        #barWrap { 
+            width:100%; 
+            background:#222; 
+            border-radius:10px; 
+            overflow:hidden; 
+            margin-top:10px; 
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.5), 0 0 10px rgba(156, 39, 176, 0.2);
+        }
+
+        #bar { 
+            height:14px; 
+            width:0%; 
+            background:linear-gradient(90deg,#7efff5,#9c27b0); 
+            transition: width .2s ease; 
+            box-shadow: 0 0 10px #7efff5; /* Lueur sur la partie active */
+        }
+
+        #barText { margin-top:6px; text-align:center; font-size:.9em; color:#b6f7ff; text-shadow: 0 0 5px #7efff5; }
+        
+        /* Sélecteur de colonnes */
+        /* AJOUT : Ombre interne pour l'effet de profondeur */
+        #columnSelector { 
+            display:none; 
+            max-height:200px; 
+            overflow-y:auto; 
+            border:1px solid #555; 
+            padding:15px; 
+            background:#1a1a2e; 
+            border-radius:5px; 
+            margin: 10px 0; 
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.5);
+        }
+
+        .col-item { display: inline-block; margin-right: 15px; cursor: pointer; padding: 3px 8px; border-radius: 4px; transition: 0.2s;}
+        
+        /* AJOUT : Surlignage lumineux au survol des items */
+        .col-item:hover {
+            background: rgba(126, 255, 245, 0.1);
+            color: #fff;
+            text-shadow: 0 0 5px #7efff5;
+        }
+
+        /* Table d'aperçu */
+        /* AJOUT : Ombre portée pour détacher la table */
+        .table-container { 
+            overflow-x: auto; 
+            background: #1a1a2e; 
+            border-radius: 10px; 
+            border: 1px solid #555; 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+
+        table { width:100%; border-collapse:collapse; font-size:12px; }
+        th, td { padding:8px; border:1px solid #444; text-align:left; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        
+        /* AJOUT : Illumination subtile des entêtes */
+        thead th { 
+            background:#2e2e60; 
+            color: #7efff5; 
+            position:sticky; 
+            top:0; 
+            text-shadow: 0 0 5px rgba(126, 255, 245, 0.5);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        tbody tr:nth-child(even){ background:#2c2c44; }
+        
+        /* AJOUT : Effet de ligne "sous tension" au survol */
+        tbody tr:hover{ 
+            background:#3c3c66; 
+            color: #fff;
+            box-shadow: inset 0 0 10px rgba(126, 255, 245, 0.2);
+        }
+		
+		
+    </style>
+</head>
+<body>
+
+<h1>DATA Extractor</h1>
+
+<div class="container">
+  <input type="file" id="fileInput" multiple accept=".csv,.tsv,.xlsx">
+  <button id="btJOIN">⚡ JOIN & ANALYZE</button>
+  
+  <div id="barWrap"><div id="bar"></div></div>
+  <div id="barText"></div>
+  <div id="progress"></div>
+
+  <hr style="border:0.5px solid #444; margin:20px 0;">
+
+  <div style="display: flex; align-items: center; flex-wrap: wrap;">
+      <select id="exportFormat">
+        <option value="tsv">Format TSV (Excel Tab)</option>
+        <option value="csv">Format CSV (Virgule)</option>
+        <option value="xlsx">Format Excel (.xlsx)</option>
+      </select>
+
+      <select id="columnMode">
+        <option value="all">Toutes les colonnes</option>
+        <option value="select">Choisir les colonnes...</option>
+      </select>
+
+      <button id="btExtract">⬇️ Télécharger</button>
+      <button onclick="copier()">📋 Copier Presse-papier</button>
+  </div>
+
+  <div id="columnSelector">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+        <p style="margin:0; color:#7efff5;">Cochez les colonnes à conserver :</p>
+        <input type="text" id="colSearch" placeholder="Rechercher une colonne..." 
+               style="margin:0; padding: 5px 10px; width: 250px; background: #2e2e60; color: white; border: 1px solid #7efff5;">
+    </div>
+    <div id="colList"></div>
+</div>
+<div class="table-container">
+    <table id="previewTable">
+        <thead><tr id="thr"></tr></thead>
+        <tbody id="tbr"></tbody>
+    </table>
+</div>
+
+<script>
+
+
+
+let SELECTED_ORDER = []; // Stockera l'ordre exact de sélection
+let ALL_HEADERS = new Set();
+let FINAL_ROWS = [];
+let FILES_COUNT = 0;
+let FILES_DONE = 0;
+
+
+/* version 1
+// Change le mode d'affichage du sélecteur de colonnes
+$("#columnMode").on("change", function() {
+    if($(this).val() === "select") $("#columnSelector").fadeIn();
+    else $("#columnSelector").fadeOut();
+});
+
+// ======== BOUTON PLAY ========
+$("#btJOIN").on("click", function () {
+  resetAll();
+  const files = $("#fileInput")[0].files;
+  if (!files.length) return alert("Aucun fichier sélectionné");
+
+  FILES_COUNT = files.length;
+  $("#progress").text("Analyse des fichiers en cours...\n");
+
+  Array.from(files).forEach(file => {
+    const ext = file.name.split(".").pop().toLowerCase();
+    if (ext === "csv" || ext === "tsv") parseCSV(file, ext);
+    else if (ext === "xlsx") parseXLSX(file);
+    else finishOne();
+  });
+});
+
+// ======== PARSING ========
+function parseCSV(file, ext) {
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: true,
+    delimiter: ext === "tsv" ? "\t" : "",
+    complete: res => {
+      processData(res.data, file.name);
+      finishOne();
+    }
+  });
+}
+
+function parseXLSX(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, { type: "array" });
+    wb.SheetNames.forEach(sheet => {
+      const data = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { defval: "" });
+      processData(data, file.name);
+    });
+    finishOne();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function processData(data, fileName) {
+    if(!data.length) return;
+    data.forEach(row => {
+        row["source.name"] = fileName;
+        Object.keys(row).forEach(h => {
+            if(h !== "source.name") ALL_HEADERS.add(h); // On garde source.name à part
+        });
+        FINAL_ROWS.push(row);
+    });
+}
+
+function finishOne() {
+  FILES_DONE++;
+  updateBar();
+  if (FILES_DONE === FILES_COUNT) finalize();
+}
+
+// 10/04/2026 - 15:54 ======== FINALISATION & APERÇU ======== avec ordre
+function finalize() {
+  $("#colList").empty();
+  SELECTED_ORDER = []; // Reset l'ordre à chaque nouveau JOIN
+
+  Array.from(ALL_HEADERS).sort().forEach(h => {
+      $("#colList").append(`<label class="col-item"><input type="checkbox" value="${h}"> ${h}</label>`);
+  });
+
+  $("#progress").append(`✔ Terminé : ${FILES_COUNT} fichiers, ${FINAL_ROWS.length} lignes.`);
+  
+  // GESTION DE L'ORDRE DE SÉLECTION
+  $("#colList input").on("change", function() {
+      const val = $(this).val();
+      if ($(this).is(":checked")) {
+          // Si on coche, on ajoute à la fin de la liste
+          SELECTED_ORDER.push(val);
+      } else {
+          // Si on décoche, on retire de la liste peu importe sa position
+          SELECTED_ORDER = SELECTED_ORDER.filter(item => item !== val);
+      }
+      renderPreview();
+  });
+}
+
+
+function renderPreview() {
+    const headers = getSelectedHeaders();
+    const $thr = $("#thr").empty();
+    const $tbr = $("#tbr").empty();
+
+    headers.forEach(h => $thr.append(`<th>${h}</th>`));
+
+    FINAL_ROWS.slice(0, 50).forEach(row => {
+        let tr = "<tr>";
+        headers.forEach(h => tr += `<td>${row[h] || ""}</td>`);
+        $tbr.append(tr + "</tr>");
+    });
+}
+
+//10/04/2026 - 15:55 - 
+function getSelectedHeaders() {
+    // On commence TOUJOURS par la source
+    let base = ["source.name"];
+    
+    if ($("#columnMode").val() === "all") {
+        return [...base, ...Array.from(ALL_HEADERS).sort()];
+    } else {
+        // On retourne la source suivie des colonnes dans l'ordre du clic
+        return [...base, ...SELECTED_ORDER];
+    }
+}
+
+// ======== EXPORTS ========
+$("#btExtract").on("click", function () {
+  if (!FINAL_ROWS.length) return alert("Lancez d'abord le JOIN");
+  const format = $("#exportFormat").val();
+  const headers = getSelectedHeaders();
+  
+  const dataToExport = FINAL_ROWS.map(row => {
+      let newRow = {};
+      headers.forEach(h => newRow[h] = row[h] || "");
+      return newRow;
+  });
+
+  if (format === "xlsx") {
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "DATA");
+      XLSX.writeFile(wb, "DATA_EXTRACTOR.xlsx");
+  } else {
+      const sep = format === "csv" ? "," : "\t";
+      const csvContent = [
+          headers.join(sep),
+          ...dataToExport.map(row => headers.map(h => `"${String(row[h]).replace(/"/g, '""')}"`).join(sep))
+      ].join("\n");
+      
+      const blob = new Blob([csvContent], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `DATA_EXTRACTOR.${format}`;
+      a.click();
+  }
+});
+
+function copier() {
+  if (!FINAL_ROWS.length) return;
+  const headers = getSelectedHeaders();
+  const sep = $("#exportFormat").val() === "csv" ? "," : "\t";
+  
+  const text = [
+      headers.join(sep), 
+      ...FINAL_ROWS.map(row => headers.map(h => row[h] || "").join(sep))
+  ].join("\n");
+  
+  navigator.clipboard.writeText(text).then(() => alert("Copié dans le presse-papier !"));
+}
+
+function updateBar() {
+  const percent = Math.round((FILES_DONE / FILES_COUNT) * 100);
+  $("#bar").css("width", percent + "%");
+  $("#barText").text(percent + "%");
+}
+
+function resetAll() {
+  ALL_HEADERS = new Set();
+  FINAL_ROWS = [];
+  FILES_DONE = 0;
+  $("#bar").css("width", "0%");
+  $("#progress").text("");
+  $("#thr, #tbr, #colList").empty();
+}
+
+//10/04/2026 - 15:50 - recherche des entêtes
+// Fonction de recherche en temps réel
+$("#colSearch").on("keyup", function() {
+    const value = $(this).val().toLowerCase();
+    
+    $("#colList .col-item").filter(function() {
+        // On récupère le texte du label pour comparer
+        const text = $(this).text().toLowerCase();
+        $(this).toggle(text.indexOf(value) > -1);
+    });
+});
+
+// Optionnel : Réinitialiser la recherche quand on relance un JOIN
+// 10/04/2026 - 15:56 - À ajouter dans ta fonction resetAll() 
+function resetAll() {
+  ALL_HEADERS = new Set();
+  FINAL_ROWS = [];
+  SELECTED_ORDER = []; // <-- Ajout ici
+  FILES_DONE = 0;
+  $("#bar").css("width", "0%");
+  $("#progress").text("");
+  $("#thr, #tbr, #colList").empty();
+}
+
+
+*/
+
+//*version 2
+// Gestion du sélecteur
+$("#columnMode").on("change", function() {
+    if($(this).val() === "select") $("#columnSelector").fadeIn();
+    else $("#columnSelector").fadeOut();
+});
+
+// Recherche d'entêtes
+$("#colSearch").on("keyup", function() {
+    const value = $(this).val().toLowerCase();
+    $("#colList .col-item").each(function() {
+        const text = $(this).text().toLowerCase();
+        $(this).toggle(text.indexOf(value) > -1);
+    });
+});
+
+// Bouton principal
+$("#btJOIN").on("click", function () {
+  resetAll();
+  const files = $("#fileInput")[0].files;
+  if (!files.length) return alert("Aucun fichier sélectionné");
+
+  FILES_COUNT = files.length;
+  $("#progress").text("Analyse des fichiers en cours...\n");
+
+  Array.from(files).forEach(file => {
+    const ext = file.name.split(".").pop().toLowerCase();
+    if (ext === "csv" || ext === "tsv") parseCSV(file, ext);
+    else if (ext === "xlsx") parseXLSX(file);
+    else finishOne();
+  });
+});
+
+function parseCSV(file, ext) {
+  Papa.parse(file, {
+    header: true, skipEmptyLines: true, delimiter: ext === "tsv" ? "\t" : "",
+    complete: res => { processData(res.data, file.name); finishOne(); }
+  });
+}
+
+function parseXLSX(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, { type: "array" });
+    wb.SheetNames.forEach(sheet => {
+      const data = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { defval: "" });
+      processData(data, file.name);
+    });
+    finishOne();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function processData(data, fileName) {
+    if(!data.length) return;
+    data.forEach(row => {
+        row["source.name"] = fileName;
+        Object.keys(row).forEach(h => {
+            if(h !== "source.name") ALL_HEADERS.add(h);
+        });
+        FINAL_ROWS.push(row);
+    });
+}
+
+function finishOne() {
+  FILES_DONE++;
+  updateBar();
+  if (FILES_DONE === FILES_COUNT) finalize();
+}
+
+function finalize() {
+  $("#colList").empty();
+  SELECTED_ORDER = []; 
+  Array.from(ALL_HEADERS).sort().forEach(h => {
+      $("#colList").append(`<label class="col-item"><input type="checkbox" value="${h}"> ${h}</label>`);
+  });
+
+  $("#progress").append(`✔ Terminé : ${FILES_COUNT} fichiers, ${FINAL_ROWS.length} lignes.`);
+  
+  $("#colList input").on("change", function() {
+      const val = $(this).val();
+      if ($(this).is(":checked")) SELECTED_ORDER.push(val);
+      else SELECTED_ORDER = SELECTED_ORDER.filter(item => item !== val);
+      renderPreview();
+  });
+  renderPreview();
+}
+
+function renderPreview() {
+    const headers = getSelectedHeaders();
+    const $thr = $("#thr").empty();
+    const $tbr = $("#tbr").empty();
+
+    headers.forEach(h => $thr.append(`<th>${h}</th>`));
+
+    FINAL_ROWS.slice(0, 50).forEach(row => {
+        let tr = "<tr>";
+        headers.forEach(h => {
+            // Sécurité pour fichiers hétérogènes : on affiche vide si la colonne n'existe pas dans ce fichier
+            tr += `<td>${row[h] !== undefined ? row[h] : ""}</td>`;
+        });
+        $tbr.append(tr + "</tr>");
+    });
+}
+
+function getSelectedHeaders() {
+    let base = ["source.name"];
+    if ($("#columnMode").val() === "all") {
+        return [...base, ...Array.from(ALL_HEADERS).sort()];
+    } else {
+        return [...base, ...SELECTED_ORDER];
+    }
+}
+
+$("#btExtract").on("click", function () {
+  if (!FINAL_ROWS.length) return alert("Lancez d'abord le JOIN");
+  const format = $("#exportFormat").val();
+  const headers = getSelectedHeaders();
+  
+  // Reconstruction propre pour l'export (alignement des colonnes manquantes)
+  const dataToExport = FINAL_ROWS.map(row => {
+      let newRow = {};
+      headers.forEach(h => newRow[h] = row[h] !== undefined ? row[h] : "");
+      return newRow;
+  });
+
+  if (format === "xlsx") {
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "DATA");
+      XLSX.writeFile(wb, "DATA_EXTRACTOR.xlsx");
+  } else {
+      const sep = format === "csv" ? "," : "\t";
+      const csvContent = [
+          headers.join(sep),
+          ...dataToExport.map(row => headers.map(h => `"${String(row[h]).replace(/"/g, '""')}"`).join(sep))
+      ].join("\n");
+      
+      const blob = new Blob(["\ufeff" + csvContent], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `DATA_EXTRACTOR.${format}`;
+      a.click();
+  }
+});
+
+function copier() {
+  if (!FINAL_ROWS.length) return;
+  const headers = getSelectedHeaders();
+  const sep = $("#exportFormat").val() === "csv" ? "," : "\t";
+  const text = [
+      headers.join(sep), 
+      ...FINAL_ROWS.map(row => headers.map(h => row[h] !== undefined ? row[h] : "").join(sep))
+  ].join("\n");
+  navigator.clipboard.writeText(text).then(() => alert("Copié !"));
+}
+
+function updateBar() {
+  const percent = Math.round((FILES_DONE / FILES_COUNT) * 100);
+  $("#bar").css("width", percent + "%");
+  $("#barText").text(percent + "%");
+}
+
+function resetAll() {
+  ALL_HEADERS = new Set();
+  FINAL_ROWS = [];
+  SELECTED_ORDER = [];
+  FILES_DONE = 0;
+  $("#bar").css("width", "0%");
+  $("#progress").text("");
+  $("#thr, #tbr, #colList").empty();
+}
+
+</script>
+
+</body>
+</html>
