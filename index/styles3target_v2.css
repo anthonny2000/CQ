@@ -1,0 +1,694 @@
+/* ===== Fix select.line — override .line height/display ===== */
+select.line,
+select.qa-input-dupe,
+select.qa-input-reason {
+    height: auto !important;
+    min-height: 30px !important;
+    display: block !important;
+    white-space: normal !important;
+    width: 100% !important;
+    background: #0f172a !important;
+    color: #f8fafc !important;
+    font-family: monospace !important;
+    font-size: 11px !important;
+    cursor: pointer !important;
+    border: 1px solid rgba(0, 210, 255, 0.4) !important;
+    border-radius: 4px !important;
+    padding: 4px 6px !important;
+}
+
+select.qa-input-dupe option,
+select.qa-input-reason option {
+    background: #0f172a;
+    color: #f8fafc;
+    font-family: monospace;
+    font-size: 11px;
+}
+
+#viewer > div.bottom-row > div > div:nth-child(7) > select, #viewer > div.bottom-row > div > div:nth-child(8) {
+    user-select: all;
+    font-family: monospace;
+    font-size: 11px;
+    cursor: pointer;
+    background: #0f172a;
+    color: #f8fafc;
+}
+
+
+#viewer > div.bottom-row > div > div:nth-child(8) > select > option, #viewer > div.bottom-row > div > div:nth-child(7) > select > option {
+    user-select: all;
+    font-family: monospace;
+    font-size: 11px;
+    cursor: pointer;
+    background: #0f172a;
+    color: #f8fafc;
+}
+
+
+
+/*11/04/2026 - 13:16 floating btoun*/
+/* Positionnement du conteneur global */
+.floating-container {
+    position: fixed;
+    bottom: 25px;
+    left: 25px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* Aligne le panneau sous le bouton à gauche */
+}
+
+/* Le bouton rond (Toggle) */
+/* Le bouton rond (Toggle) */
+.toggle-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: var(--card-bg);
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    
+    /* CENTRAGE PARFAIT VIA GRID */
+    display: grid !important;
+    place-items: center !important;
+    padding: 0 !important; /* On retire tout padding */
+    margin: 0 !important;
+    
+    /* Style du symbole */
+    font-size: 32px;
+    font-family: 'Orbitron', sans-serif; /* Pour rester dans ton thème */
+    line-height: 1; /* On remet à 1 pour le calcul du grid */
+    
+    cursor: pointer;
+    box-shadow: 0 0 15px rgba(0, 210, 255, 0.3);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    z-index: 10001;
+    backdrop-filter: blur(10px);
+}
+
+/* État tourné (le X) */
+.rotated {
+    transform: rotate(135deg);
+    background: #ff4757 !important;
+    border-color: #ff4757 !important;
+    color: white !important;
+}
+
+/* Le Panneau Flottant */
+.panel {
+    width: 220px;
+    background: var(--card-bg);
+    backdrop-filter: blur(15px);
+    border: 1px solid var(--border-glass);
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    margin-top: 15px;
+    padding: 15px;
+    
+    transform-origin: top left; /* Déploiement depuis le bouton */
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    opacity: 1;
+    transform: scale(1);
+    visibility: visible;
+    overflow: hidden;
+}
+
+/* État fermé */
+.panel.collapsed {
+    opacity: 0;
+    transform: scale(0);
+    visibility: hidden;
+    max-height: 0;
+    margin-top: 0;
+    padding: 0;
+}
+
+/* Boutons Menu (Réutilisation de ton style existant pour la cohérence) */
+.menu-btn {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 8px;
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.05);
+    color: #f8fafc;
+    text-align: left;
+    cursor: pointer;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: bold;
+    transition: all 0.2s;
+}
+
+.menu-btn:hover {
+    background: var(--primary);
+    color: var(--bg-dark);
+    transform: translateX(5px);
+}
+
+/* Animation rotation bouton */
+.rotated {
+    transform: rotate(135deg);
+    background: #ff4757 !important;
+    border-color: #ff4757 !important;
+    color: white !important;
+}
+
+
+
+
+/*block Trademark*/
+
+#viewer > div.bottom-row > div > div:nth-child(4)	{
+background: rgba(0, 210, 255, 0.2) 	!important;
+}
+
+/*block BrandRepresentation*/
+#viewer > div.bottom-row > div > div:nth-child(2)	{
+	background: rgb(0 0 0 / 78%) 	!important;
+}
+
+/*block TruthSet*/
+#viewer > div.bottom-row > div > div:nth-child(3)	{
+	background: rgb(79 14 111 / 32%) 	!important;
+}
+
+
+/*============*/
+#viewer > div.top-row > div > div:nth-child(2) {
+    position: relative; /* Indispensable pour positionner la bulle */
+    cursor: help;       /* Change le curseur pour indiquer qu'il y a une info */
+}
+
+#viewer > div.top-row > div > div:nth-child(2):hover::after {
+    /* On récupère le contenu via une variable ou on le force à s'afficher */
+    content: "Valeur complète ici"; /* Note : Le CSS ne peut pas lire dynamiquement le texte tronqué sans l'attribut 'title' ou 'data-*' en HTML */
+    
+    /* Style de la bulle */
+    position: absolute;
+    top: 110%; /* Affiche la bulle juste en dessous */
+    left: 0;
+    background-color: #333;
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    white-space: normal; /* Permet le retour à la ligne dans la bulle */
+    z-index: 9999;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    width: max-content;
+    max-width: 300px;
+}
+
+
+
+
+#viewer > div.top-row > div:nth-child(1) > div:nth-child(2)	{
+	color: #ff8345 	!important;
+	
+}
+
+
+#viewer > div.top-row > div > div:nth-child(2)	{
+	color: #ffe145 	!important;
+	font-size: 19px	!important;
+	font-style: italic;
+}
+
+
+#ubiHelper {
+	display: None ! important
+}
+
+
+
+/*=========*/
+#viewer > div.bottom-row > div > div:nth-child(7) > input.block-title.qa-title,
+#viewer > div.bottom-row > div > div:nth-child(8) > input.block-title.qa-title	{
+	color: #4100ff; ! important
+}
+
+
+
+
+/*========*/
+.line a {
+    color: #ffffff !important; /* Force le lien en blanc */
+    text-decoration: underline; /* Garde le soulignement pour l'identifier comme lien */
+}
+
+.line a:hover {
+    color: #00d2ff !important; /* Optionnel : change de couleur au survol pour le feedback */
+}
+
+
+
+/* ============================================================
+   QA SYSTEM - ULTIME CYBER-TECH (styles3.css)
+   ============================================================ */
+
+:root {
+    --primary: #00d2ff;
+    --secondary: #92fe9d;
+    --accent-purple: #8e2de2;
+    --bg-dark: #0f172a;
+    --card-bg: rgba(30, 41, 59, 0.8);
+    --border-glass: rgba(255, 255, 255, 0.1);
+}
+
+/* =========================
+   GLOBAL & LAYOUT
+   ========================= */
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at top right, #1e293b, #0f172a);
+    color: #f8fafc;
+    font-family: 'Rajdhani', sans-serif;
+    overflow-x: auto; 
+}
+
+body {
+    min-width: max-content; 
+}
+
+/* =========================
+   NAVIGATION & CONTROLS (HUD FIXE)
+   ========================= */
+.controls {
+    position: fixed;   /* Fixé par rapport au viewport, plus de mouvement */
+    left: 20px; 
+    top: 10px;
+    z-index: 9999;     /* Priorité absolue */
+    display: flex;
+    align-items: center; 
+    gap: 15px;
+    padding: 12px 20px;
+    background: var(--card-bg);
+    backdrop-filter: blur(15px);
+    border-radius: 12px;
+    border: 1px solid var(--border-glass);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    width: auto;
+}
+
+/* =========================
+   STATS GROUP & BADGES
+   ========================= */
+.stats-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    vertical-align: middle;
+    margin-left: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 4px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-glass);
+}
+
+.stats-group span {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+
+#counter {
+    color: var(--primary);
+    background: rgba(0, 210, 255, 0.1);
+    border-color: rgba(0, 210, 255, 0.2);
+}
+
+#taskProgress {
+    color: #f39c12;
+    background: rgba(243, 156, 18, 0.1);
+    border-color: rgba(243, 156, 18, 0.3);
+    font-weight: bold;
+    min-width: 45px;
+    text-align: center;
+}
+
+#sourceCounter {
+    color: var(--secondary);
+    background: rgba(146, 254, 157, 0.1);
+    border-color: rgba(146, 254, 157, 0.3);
+    font-weight: bold;
+}
+
+.task-complete {
+    color: #92fe9d !important;
+    background: rgba(146, 254, 157, 0.2) !important;
+    border-color: #92fe9d !important;
+    box-shadow: 0 0 10px rgba(146, 254, 157, 0.2);
+}
+
+/* =========================
+   ELEMENTS DE CONTROLE
+   ========================= */
+button {
+    background: rgba(0, 210, 255, 0.1);
+    color: var(--primary);
+    border: 1px solid rgba(0, 210, 255, 0.4);
+    padding: 8px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+button:hover {
+    background: var(--primary);
+    color: var(--bg-dark);
+    box-shadow: 0 0 15px var(--primary);
+    transform: translateY(-2px);
+}
+
+#resetBtn { color: #ff4757; border-color: rgba(255, 71, 87, 0.4); }
+#resetBtn:hover { background: #ff4757; color: white; box-shadow: 0 0 15px #ff4757; }
+
+#historyBtn { margin-left: 5px; }
+
+/* =========================
+   GRID ALIGNEMENT & VIEWER
+   ========================= */
+#viewer {
+    display: inline-block;
+    min-width: max-content;
+    padding: 20px;
+    margin-top: 100px; 
+}
+
+.top-row, .bottom-row {
+    display: grid;
+    grid-auto-flow: column; 
+    grid-auto-columns: 310px; 
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+/* LA LIGNE DU HAUT (Sticky vertical) */
+.top-row {
+    position: sticky;
+    top: 85px; 
+    z-index: 2000; /* Plus haut que la bottom-row */
+}
+
+/* COLONNE target (Sticky horizontal) */
+.top-row .card:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2100; /* Le plus haut de tous : fixe à gauche ET au-dessus du reste */
+    background: linear-gradient(145deg, #1e293b, #0f172a) !important;
+    border-right: 2px solid var(--primary);
+    box-shadow: 10px 0 20px rgba(0,0,0,0.6);
+}
+
+.bottom-row .card:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1000; /* Sous la top-row quand on scroll vers le haut */
+    background: linear-gradient(145deg, #1e293b, #0f172a) !important;
+    border-right: 2px solid var(--primary);
+    box-shadow: 10px 0 20px rgba(0,0,0,0.6);
+}
+
+/* On s'assure que la bottom-row reste sous la top-row */
+.bottom-row {
+    position: relative;
+    z-index: 500;
+}
+
+/* Colonne target Figée */
+.top-row .card:first-child,
+.bottom-row .card:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1200;
+    background: linear-gradient(145deg, #1e293b, #0f172a) !important;
+    border-right: 2px solid var(--primary);
+    box-shadow: 10px 0 20px rgba(0,0,0,0.6);
+}
+
+/* =========================
+   CARDS & BLOCKS
+   ========================= */
+.card {
+    width: 280px; 
+    min-height: 120px;
+    padding: 15px;
+    border-radius: 15px;
+    border: 1px solid var(--border-glass);
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.8));
+    transition: 0.3s;
+    position: relative;
+    overflow: hidden;
+}
+
+.card:hover {
+    border-color: var(--primary);
+    box-shadow: 0 0 20px rgba(0, 210, 255, 0.2);
+}
+
+.section-block {
+    margin-bottom: 15px;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.block { margin-bottom: 8px; }
+
+.block-title {
+    font-size: 11px;
+    color: #009fff;
+    text-transform: uppercase;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+
+.block-trademark { border-left: 3px solid var(--accent-purple); }
+.block-brand      { border-left: 3px solid var(--primary); }
+.block-truth      { border-left: 3px solid var(--secondary); }
+.block-answer     { border-left: 3px solid #22c55e; }
+
+/* =========================
+   LINES & TEXT
+   ========================= */
+.line {
+    user-select: all;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ffffff !important; 
+    font-weight: 600;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    height: 24px;
+    transition: 0.2s;
+}
+
+.line:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: var(--primary);
+}
+
+/* TaskID Style */
+#viewer > div.top-row > div > div:nth-child(4) {
+    color: #7b6262cf !important;
+    font-weight: bold;
+    font-style: italic;
+    font-size: 11px;
+    background: transparent;
+    border: none;
+}
+
+/* Long text block (6th child) */
+.bottom-row .card > .block:nth-child(6) .line {
+    height: 130px;
+    white-space: normal;
+    overflow-y: auto;
+    display: block;
+    word-wrap: break-word;
+}
+
+/* =========================
+   FLOATING PANEL & SCROLLBAR
+   ========================= */
+#floatingPanel {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: var(--card-bg);
+    backdrop-filter: blur(15px);
+    padding: 15px;
+    border-radius: 12px;
+    border: 1px solid var(--primary);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 9999;
+    box-shadow: 0 0 30px rgba(0,0,0,0.5);
+}
+
+.qa-check { transform: scale(1.8); margin: 10px; cursor: pointer; }
+
+::-webkit-scrollbar { height: 10px; width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-dark); }
+::-webkit-scrollbar-thumb { background: var(--accent-purple); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+
+
+/*===============================*/
+/* Style pour rendre les items cliquables */
+.summary-item {
+    padding: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 6px;
+}
+
+.summary-item:hover {
+    background: rgba(0, 210, 255, 0.15);
+    transform: translateX(5px);
+}
+
+.bottom-deploy::-webkit-scrollbar { width: 6px; }
+.bottom-deploy::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; }
+
+.list-wrapper {
+    position: relative;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+/* Le Panneau qui descend */
+.bottom-deploy {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 0;
+    width: 320px;
+    max-height: 500px;
+    background: rgb(31 41 59);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--primary);
+    border-radius: 12px;
+    padding: 15px;
+    box-shadow: 0 15px 40px rgba(0,0,0,0.8);
+    z-index: 10005 !important;
+    transform-origin: top left;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    opacity: 1;
+    visibility: visible;
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.bottom-deploy.collapsed {
+    opacity: 0;
+    transform: scale(0);
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.list-title {
+    color: var(--primary);
+    font-family: 'Orbitron';
+    font-size: 13px;
+    margin: 0 0 12px 0;
+    border-bottom: 1px solid var(--border-glass);
+    padding-bottom: 5px;
+}
+
+.summary-number {
+    color: var(--secondary);
+    font-size: 10px;
+    font-family: 'Orbitron';
+    font-weight: bold;
+}
+
+.summary-text {
+    font-size: 12px;
+    color: #ffffff;
+    margin-top: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 280px;
+    display: block;
+}
+
+/* Glow items dans la liste */
+.summary-item.glow-source { border-left: 4px solid #00d2ff; box-shadow: inset 5px 0 10px rgba(0, 210, 255, 0.2); }
+.summary-item.glow-target { border-left: 4px solid #9d00ff; box-shadow: inset 5px 0 10px rgba(157, 0, 255, 0.2); }
+
+/* Styles pour le 6ème bloc (Source vs Target) */
+.glow-source {
+    border: 2px solid #ff8c00 !important;
+    box-shadow: 0 0 15px 4px rgba(255, 0, 0, 0.7) !important;
+    color: #ffffff !important;
+}
+
+.glow-target {
+    border: 2px solid #000080 !important;
+    box-shadow: 0 0 15px 4px rgba(0, 255, 0, 0.6) !important;
+    color: #ffffff !important;
+}
+
+/* Classes de bordures avec lueur épaisse */
+.border-marron {
+    border: 2px solid #a52a2a !important;
+    box-shadow: 0 0 15px 3px rgba(165, 42, 42, 0.7) !important;
+    color: #f5f5f5 !important;
+}
+
+.border-marine {
+    border: 2px solid #000080 !important;
+    box-shadow: 0 0 15px 3px #00d2ff !important;
+    color: #f5f5f5 !important;
+}
+
+.border-violet {
+    border: 2px solid #8e2de2 !important;
+    box-shadow: 0 0 15px 3px rgba(142, 45, 226, 0.7) !important;
+    color: #f5f5f5 !important;
+}
+
+.border-red {
+    border: 2px solid #8e2de2 !important;
+    box-shadow: 0 0 15px 3px #92fe9d !important;
+    color: #f5f5f5 !important;
+}
+
+.border-green {
+    border: 2px solid #8e2de2 !important;
+    box-shadow: 0 0 15px 3px rgba(142, 45, 226, 0.7) !important;
+    color: #f5f5f5 !important;
+}
+
+/* targetCounter (équivalent de #targetCounter dans source) */
+#targetCounter {
+    color: var(--secondary);
+    background: rgba(146, 254, 157, 0.1);
+    border-color: rgba(146, 254, 157, 0.3);
+    font-weight: bold;
+}
