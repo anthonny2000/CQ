@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>DATA Extractor v2</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+body {
+  font-family: "Segoe UI", sans-serif;
+  background: #0e0e1f;
+  color: #e0e0ff;
+  padding: 2em;
+}
+
+h1 {
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 0 5px #b084ff, 0 0 10px #7efff5;
+}
+
+.container {
+  background: rgba(40,40,60,.85);
+  border: 2px solid #9c27b0;
+  box-shadow: 0 0 20px rgba(138,43,226,.5);
+  border-radius: 15px;
+  padding: 20px;
+}
+
+input,
+button {
+  margin: 10px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+}
+
+button {
+  background: linear-gradient(135deg,#9d50bb,#4776e6);
+  color: #fff;
+  font-weight: 700;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 10px rgba(158,120,255,.6);
+}
+
+#progress {
+  text-align: center;
+  margin-top: 10px;
+  white-space: pre-line;
+}
+
+#barWrap {
+  width: 100%;
+  background: #222;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+#bar {
+  height: 14px;
+  width: 0%;
+  background: linear-gradient(90deg,#7efff5,#9c27b0);
+  transition: width .2s ease;
+}
+
+#barText {
+  margin-top: 6px;
+  text-align: center;
+  font-size: .9em;
+  color: #b6f7ff;
+}
+
+</style>
+</head>
+
+<body>
+
+<h1>DATA Extractor V2</h1>
+
+<div class="container">
+
+<input type="file" id="fileInput" multiple accept=".csv,.tsv,.xlsx">
+
+<button id="play1">Per Date</button>
+<button id="play2">Globale</button>
+<button onclick="copier()">Copier</button>
+
+<div id="progress"></div>
+
+<div id="barWrap"><div id="bar"></div></div>
+<div id="barText"></div>
+
+</div>
+
+<script>
+
+let DATA_base=[]
+let FINAL_TSV=""
+
+/* =====================
+PLAY 1
+===================== */
+
+$("#play1").click(async function(){
+
+const files=$("#fileInput")[0].files
+if(!files.length)return
+
+DATA_base=await buildDatabase(files)
+
+const final=aggregateByDate(DATA_base)
+
+FINAL_TSV=buildTSV_date(final)
+
+})
+
+/* =====================
+PLAY 2
+===================== */
+
+$("#play2").click(async function(){
+
+const files=$("#fileInput")[0].files
+if(!files.length)return
+
+DATA_base=await buildDatabase(files)
+
+const final=aggregateGlobal(DATA_base)
+
+FINAL_TSV=buildTSV_global(final)
+
+})
+
+/* =====================
+BUILD DATABASE
+===================== */
+
+async function buildDatabase(files){
+
+let output=[]
+let totalLines=0
+
+$("#bar").css("width","0%")
+
+for(let f=0;f<files.length;f++){
+
+const file=files[f]
+
+const rows=await readFile(file)
+
+totalLines+=rows.length
+
+for(const r of rows){
+
+const AwsHitID=r.AwsHitID
+const AwsWorkerID=r.AwsWorkerID
+const AcceptTime=r.AcceptTime
+const SubmissionTime=r.SubmissionTime
+const Answer_IsDupe=r.Answer_IsDupe
+
+if(!AwsHitID||!AwsWorkerID||!AcceptTime||!SubmissionTime)continue
+
+const AcceptDate=parseMTurkDate(AcceptTime)
+const SubmissionDate=parseMTurkDate(SubmissionTime)
+
+if(!AcceptDate||!SubmissionDate)continue
+
+const DMT=SubmissionDate-AcceptDate
+if(DMT<0)continue
+
+output.push({
+
+source:file.name,
+AwsHitID,
+AwsWorkerID,
+Date:formatDate(SubmissionDate),
+
+DMT,
+COULD_NOT_CONCLUDE:Answer_IsDupe==="COULD_NOT_CONCLUDE"?1:0,
+DUPLICATE:Answer_IsDupe==="DUPLICATE"?1:0,
+UNIQUE:Answer_IsDupe==="UNIQUE"?1:0
+
+})
+
+}
+
+const percent=Math.round((f+1)/files.length*100)
+
+$("#bar").css("width",percent+"%")
+$("#barText").text(`Traitement ${f+1}/${files.length}`)
+
+}
+
+/* ===== count AwsHitID ===== */
+
+const hitCount={}
+
+for(const r of output){
+
+hitCount[r.AwsHitID]=(hitCount[r.AwsHitID]||0)+1
+
+}
+
+for(const r of output){
+
+r.nb_AwsHitID=hitCount[r.AwsHitID]
+r.DMT_reel=r.DMT/r.nb_AwsHitID
+
+}
+
+$("#progress").html(
+`Fichiers : <b>${files.length}</b><br>
+Lignes : <b>${output.length}</b>`
+)
+
+return output
+
+}
+
+/* =====================
+AGGREGATION PLAY1
+===================== */
+
+function aggregateByDate(data){
+
+const map=new Map()
+
+for(const r of data){
+
+const key=r.source+"|"+r.Date+"|"+r.AwsWorkerID
+
+if(!map.has(key)){
+
+map.set(key,{
+source:r.source,
+Date:r.Date,
+AwsWorkerID:r.AwsWorkerID,
+TTT:0,
+COULD_NOT_CONCLUDE:0,
+DUPLICATE:0,
+UNIQUE:0
+})
+
+}
+
+const obj=map.get(key)
+
+obj.TTT+=r.DMT_reel
+obj.COULD_NOT_CONCLUDE+=r.COULD_NOT_CONCLUDE
+obj.DUPLICATE+=r.DUPLICATE
+obj.UNIQUE+=r.UNIQUE
+
+}
+
+return [...map.values()]
+
+}
+
+/* =====================
+AGGREGATION PLAY2
+===================== */
+
+function aggregateGlobal(data){
+
+const map=new Map()
+
+for(const r of data){
+
+const key=r.source+"|"+r.AwsWorkerID
+
+if(!map.has(key)){
+
+map.set(key,{
+source:r.source,
+AwsWorkerID:r.AwsWorkerID,
+TTT:0,
+COULD_NOT_CONCLUDE:0,
+DUPLICATE:0,
+UNIQUE:0
+})
+
+}
+
+const obj=map.get(key)
+
+obj.TTT+=r.DMT_reel
+obj.COULD_NOT_CONCLUDE+=r.COULD_NOT_CONCLUDE
+obj.DUPLICATE+=r.DUPLICATE
+obj.UNIQUE+=r.UNIQUE
+
+}
+
+return [...map.values()]
+
+}
+
+/* =====================
+TSV EXPORT
+===================== */
+
+function buildTSV_date(rows){
+
+let tsv="source.name\tDate\tAwsWorkerID\tTTT\tCOULD_NOT_CONCLUDE\tDUPLICATE\tUNIQUE\n"
+
+for(const r of rows){
+
+tsv+=`${r.source}\t${r.Date}\t${r.AwsWorkerID}\t${formatDuration(r.TTT)}\t${r.COULD_NOT_CONCLUDE}\t${r.DUPLICATE}\t${r.UNIQUE}\n`
+
+}
+
+return tsv
+
+}
+
+function buildTSV_global(rows){
+
+let tsv="source.name\tAwsWorkerID\tTTT\tCOULD_NOT_CONCLUDE\tDUPLICATE\tUNIQUE\n"
+
+for(const r of rows){
+
+tsv+=`${r.source}\t${r.AwsWorkerID}\t${formatDuration(r.TTT)}\t${r.COULD_NOT_CONCLUDE}\t${r.DUPLICATE}\t${r.UNIQUE}\n`
+
+}
+
+return tsv
+
+}
+
+/* =====================
+FILE READ
+===================== */
+
+function readFile(file){
+
+return new Promise(resolve=>{
+
+const ext=file.name.split(".").pop().toLowerCase()
+
+if(ext==="csv"||ext==="tsv"){
+
+Papa.parse(file,{
+header:true,
+delimiter:ext==="tsv"?"\t":",",
+skipEmptyLines:true,
+complete:r=>resolve(r.data)
+})
+
+}
+
+else if(ext==="xlsx"){
+
+const reader=new FileReader()
+
+reader.onload=e=>{
+
+const wb=XLSX.read(e.target.result,{type:"array"})
+const sheet=wb.Sheets[wb.SheetNames[0]]
+
+resolve(XLSX.utils.sheet_to_json(sheet))
+
+}
+
+reader.readAsArrayBuffer(file)
+
+}
+
+else resolve([])
+
+})
+
+}
+
+/* =====================
+DATE UTILS
+===================== */
+
+function parseMTurkDate(str){
+
+let s=str.replace(/^.*? /,"").replace(" UTC","").trim()
+
+const p=s.split(" ")
+
+const month=parseInt(p[0])-1
+const day=parseInt(p[1])
+const [h,m,s2]=p[2].split(":").map(Number)
+const year=parseInt(p[3])
+
+const d=new Date(Date.UTC(year,month,day,h,m,s2))
+
+d.setUTCHours(d.getUTCHours()+3)
+
+return d
+
+}
+
+function formatDate(d){
+
+const dd=String(d.getUTCDate()).padStart(2,"0")
+const mm=String(d.getUTCMonth()+1).padStart(2,"0")
+const yyyy=d.getUTCFullYear()
+
+return `${dd}/${mm}/${yyyy}`
+
+}
+
+function formatDuration(ms){
+
+const sec=Math.floor(ms/1000)
+
+const h=Math.floor(sec/3600)
+const m=Math.floor((sec%3600)/60)
+const s=sec%60
+
+return `${h}:${m}:${s}`
+
+}
+
+/* =====================
+COPY
+===================== */
+
+function copier(){
+
+if(!FINAL_TSV)return
+
+navigator.clipboard.writeText(FINAL_TSV)
+
+alert("TSV copié")
+
+}
+
+</script>
+
+</body>
+</html>
