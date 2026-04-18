@@ -1,11 +1,50 @@
-.overlap {
-    position: absolute;
-    z-index: 1;
-}
-
-.overlap-container {
-    position: relative;
-    overflow: hidden;
-}
-
 @import "styles3source.css";
+
+/* ===== QA INPUTS - OVERLAP SPECIFIC STYLING ===== */
+select.line,
+select.qa-input-dupe,
+select.qa-input-reason,
+input.qa-input-dupe,
+input.qa-input-reason {
+    height: auto !important;
+    min-height: 32px !important;
+    display: block !important;
+    white-space: normal !important;
+    width: 100% !important;
+    background: rgba(0, 0, 0, 0.6) !important;
+    color: #92fe9d !important;
+    font-family: monospace !important;
+    font-size: 11px !important;
+    cursor: pointer !important;
+    border: 1px solid rgba(0, 210, 255, 0.4) !important;
+    border-radius: 4px !important;
+    padding: 6px 8px !important;
+    margin-top: 4px !important;
+    transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+
+select.qa-input-dupe:focus,
+select.qa-input-reason:focus,
+input.qa-input-dupe:focus,
+input.qa-input-reason:focus {
+    outline: none !important;
+    border-color: #00d2ff !important;
+    box-shadow: 0 0 8px rgba(0, 210, 255, 0.4) !important;
+}
+
+select.qa-input-dupe option,
+select.qa-input-reason option {
+    background: #0f172a !important;
+    color: #f8fafc !important;
+    font-family: monospace !important;
+    font-size: 11px !important;
+}
+
+.qa-block .line.qa-input-dupe,
+.qa-block .line.qa-input-reason {
+    height: auto !important;
+    min-height: 32px !important;
+    display: block !important;
+    flex: none !important;
+    align-items: auto !important;
+}
