@@ -1,0 +1,7 @@
+@import 'base.css';
+
+/* Overlap-specific styles */
+.overlap {
+    position: relative;
+    z-index: 10;
+}
