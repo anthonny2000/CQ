@@ -53,30 +53,30 @@ select.qa-input-reason option {
 #viewer > div.bottom-row > div > div:nth-child(7) > select > option,
 #viewer > div.bottom-row > div > div:nth-child(7) > select
 {
-    user-select: all;
-    cursor: pointer;
-    font-size: 11px;
-    background: black;
-    user-select: all;
-    font-family: monospace;
-    font-size: 11px;
-    cursor: pointer;
-    background: #0f172a;
-    color: #f8fafc;
+    user-select: all; !important
+    cursor: pointer; !important
+    font-size: 11px; !important
+    background: black; !important
+    user-select: all; !important
+    font-family: monospace; !important
+    font-size: 11px; !important
+    cursor: pointer; !important
+    background: #0f172a; !important
+    color: #f8fafc; !important
     
 }   
 
  
 #viewer > div.bottom-row > div > div > select
-{   user-select: all;
-    cursor: pointer;
-    font-size: 11px;
-    background: black;
-    user-select: all;
-    font-family: monospace;
-    font-size: 11px;
-    cursor: pointer;
-    background: #0f172a;
-    color: #f8fafc;
-    width: 250px;
+{   user-select: all; !important
+    cursor: pointer; !important
+    font-size: 11px; !important
+    background: black; !important
+    user-select: all; !important
+    font-family: monospace; !important
+    font-size: 11px; !important
+    cursor: pointer; !important
+    background: #0f172a; !important
+    color: #f8fafc; !important
+    width: 250px; !important
 }
