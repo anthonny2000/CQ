@@ -48,3 +48,35 @@ select.qa-input-reason option {
     flex: none !important;
     align-items: auto !important;
 }
+
+/*================*/
+#viewer > div.bottom-row > div > div:nth-child(7) > select > option,
+#viewer > div.bottom-row > div > div:nth-child(7) > select
+{
+    user-select: all;
+    cursor: pointer;
+    font-size: 11px;
+    background: black;
+    user-select: all;
+    font-family: monospace;
+    font-size: 11px;
+    cursor: pointer;
+    background: #0f172a;
+    color: #f8fafc;
+    
+}   
+
+ 
+#viewer > div.bottom-row > div > div > select
+{   user-select: all;
+    cursor: pointer;
+    font-size: 11px;
+    background: black;
+    user-select: all;
+    font-family: monospace;
+    font-size: 11px;
+    cursor: pointer;
+    background: #0f172a;
+    color: #f8fafc;
+    width: 250px;
+}
