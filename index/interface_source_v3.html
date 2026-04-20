@@ -551,8 +551,16 @@ $(document).on("click", "#submitBtn", function() {
 		  $("#viewer .bottom-row .line").each(function() {
 			const txt = $(this).text().toLowerCase();
 			$(this).css({"color": "", "font-weight": ""});
-			if (txt.includes("target")) $(this).css({"color": "#ff0044", "font-weight": "bold"});
-			else if (txt.includes("source")) $(this).css({"color": "#ad22c5", "font-weight": "bold"});
+			$(this).removeClass("highlight-not-loading highlight-mixed-up");
+			if (txt.includes("not_loading")) {
+				$(this).addClass("highlight-not-loading");
+			} else if (txt.includes("mixed_up_and_truth_set_not_applicable")) {
+				$(this).addClass("highlight-mixed-up");
+			} else if (txt.includes("target")) {
+				$(this).css({"color": "#ff0044", "font-weight": "bold"});
+			} else if (txt.includes("source")) {
+				$(this).css({"color": "#ad22c5", "font-weight": "bold"});
+			}
 		  });
 		}
 
