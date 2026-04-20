@@ -661,3 +661,15 @@ button:hover {
 /* Optionnel : pour que le glow soit joli dans la liste */
 .summary-item.glow-source { border-left: 4px solid #00d2ff; box-shadow: inset 5px 0 10px rgba(0, 210, 255, 0.2); }
 .summary-item.glow-target { border-left: 4px solid #9d00ff; box-shadow: inset 5px 0 10px rgba(157, 0, 255, 0.2); }
+
+.highlight-not-loading {
+    border: 2px solid #000080 !important;
+    box-shadow: 0 0 15px 10px rgb(255 0 75 / 60%) !important;
+    color: #ffffff !important;
+}
+
+.highlight-mixed-up {
+    border: 2px solid #2196F3 !important;
+    box-shadow: 0 0 15px 10px #F44336 !important;
+    color: #ffffff !important;
+}
