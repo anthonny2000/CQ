@@ -80,3 +80,14 @@ select.qa-input-reason option {
     color: #f8fafc; !important
     width: 250px; !important
 }
+.highlight-not-loading {
+    border: 2px solid #000080 !important;
+    box-shadow: 0 0 15px 10px rgb(255 0 75 / 60%) !important;
+    color: #ffffff !important;
+}
+
+.highlight-mixed-up {
+    border: 2px solid #2196F3 !important;
+    box-shadow: 0 0 15px 10px #F44336 !important;
+    color: #ffffff !important;
+}
