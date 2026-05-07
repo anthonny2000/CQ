@@ -735,7 +735,13 @@ $item.on('click', function() {
 		</script>
 
 <div class="floating-container" id="floatingPanelContainer">
-    <button id="mainBtn" class="toggle-btn">+</button>
+    <button id="mainBtn" class="toggle-btn main-fab" aria-label="Actions">
+    <div class="icon-wrapper">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10.75 3.25a.75.75 0 0 0-1.5 0v6H3.251L3.25 10v-.75a.75.75 0 0 0 0 1.5V10v.75h6v6a.75.75 0 0 0 1.5 0v-6h6a.75.75 0 0 0 0-1.5h-6z" clip-rule="evenodd"></path>
+        </svg>
+    </div>
+</button>
 
     <div id="sidePanel" class="panel collapsed">
         <h3 style="color: var(--primary); font-family: 'Orbitron'; font-size: 14px; margin-bottom: 15px;">Actions QA</h3>
