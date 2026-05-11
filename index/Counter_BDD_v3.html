@@ -1,0 +1,1043 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Counter BDD - Pro</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+	<script src="CNC.js"></script>
+	<script src="DUPL.js"></script>
+	<script src="UNQ.js"></script>
+	
+	<script src="mapping.js"></script>
+	
+    
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600&display=swap');
+
+        :root {
+            --sidebar-width: 260px;
+            --sidebar-close-width: 80px;
+            --primary-color: #9c27b0;
+            --bg-dark: #0e0e1f;
+            --bg-panel: #1a1a3a;
+            --text-color: #e0e0ff;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Montserrat', sans-serif; }
+        body { background: var(--bg-dark); color: var(--text-color); overflow-x: hidden; }
+
+        /* --- NAVBAR --- */
+        .navbar {
+            position: fixed;
+            top: 0; width: 100%; left: 0;
+            background-color: var(--bg-panel);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 15px 30px; z-index: 1000;
+            border-bottom: 2px solid var(--primary-color); height: 70px;
+        }
+        .logo_item { display: flex; align-items: center; column-gap: 10px; font-size: 20px; font-weight: 600; color: white; }
+
+        /* --- SIDEBAR --- */
+        .sidebar {
+            background-color: var(--bg-panel);
+            width: var(--sidebar-width);
+            position: fixed; top: 0; left: 0; height: 100%;
+            padding: 80px 15px 20px; z-index: 100;
+            transition: all 0.5s ease; border-right: 1px solid #444;
+        }
+        .sidebar.close { width: var(--sidebar-close-width); }
+        .menu_title { margin: 15px 0; padding: 0 15px; font-size: 11px; text-transform: uppercase; color: #888; font-weight: bold; }
+        .sidebar.close .menu_title { display: none; }
+
+        /* STYLE BOUTON SIDEBAR */
+        .nav_link {
+            display: flex; align-items: center;
+            width: 100%; padding: 10px 15px;
+            border-radius: 5px; text-decoration: none;
+            color: white; background: rgba(255, 255, 255, 0.05);
+            white-space: nowrap; cursor: pointer; margin-bottom: 8px;
+            transition: 0.2s; font-size: 11px; text-transform: uppercase; font-weight: 600;
+            border: 1px solid rgba(156, 39, 176, 0.2);
+        }
+        .nav_link:hover { background: var(--primary-color); box-shadow: 0 0 10px rgba(156, 39, 176, 0.4); }
+        .nav_link.active { background: var(--primary-color); border-color: #7efff5; }
+        
+        .navlink_icon { position: relative; font-size: 18px; min-width: 35px; display: flex; align-items: center; justify-content: center; }
+        .sidebar.close .navlink { display: none; }
+
+        .error-badge-mini {
+            position: absolute; top: -5px; right: -5px;
+            background: #ff4444; color: white; font-size: 10px;
+            padding: 2px 5px; border-radius: 10px; font-weight: bold; display: none;
+        }
+
+        /* --- CONTENU --- */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            padding: 90px 20px 20px; transition: all 0.5s ease;
+        }
+        .sidebar.close ~ .main-content { margin-left: var(--sidebar-close-width); }
+
+        .upload-zone {
+            background: rgba(40,40,60,0.5); border: 1px dashed var(--primary-color);
+            border-radius: 10px; padding: 15px; text-align: center; margin-bottom: 20px;
+        }
+
+        #result { background: #1a1a2e; border-radius: 8px; padding: 15px; overflow-x: auto; min-height: 400px; }
+
+        /* --- TABLES --- */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td {
+            padding: 8px 10px; border: 1px solid #444;
+            text-align: center; font-size: 11px;
+        }
+        /* Style spécifique pour les données horizontales */
+        .table-stats td, .table-stats th { width: 80px; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .table-stats td:first-child, .table-stats th:first-child {
+            text-align: left; position: sticky; left: 0; background: #1a1a3a; z-index: 10;
+            width: 180px; max-width: 180px; min-width: 180px; border-right: 2px solid var(--primary-color);
+        }
+        
+        /* Style spécifique pour le tableau d'erreurs */
+        .table-errors td { text-align: left; white-space: normal; word-break: break-all; cursor: pointer; }
+        .table-errors td:first-child { width: 200px; font-weight: 600; color: #7efff5; }
+
+        thead th { background: #2e2e60; color: #7efff5; position: sticky; top: 0; z-index: 11; }
+        tbody tr:nth-child(even) { background: rgba(255,255,255,0.03); }
+        tbody tr:hover { background: rgba(156, 39, 176, 0.1); }
+		.correction {
+    padding: 8px 15px;
+    background: #ff4444;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.correction:hover { opacity: 0.8; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="logo_item">
+        <i class="bx bx-menu" id="sidebarOpen"></i>
+        Counter-BDD
+    </div>
+    <div id="progress">Veuillez charger des fichiers</div>
+</nav>
+
+<nav class="sidebar">
+    <div class="menu_content">
+        <ul class="menu_items">
+            <div class="menu_title">Analyses</div>
+            <li class="item">
+                <a onclick="renderGlobal()" class="nav_link" id="btn-global">
+                    <span class="navlink_icon"><i class="bx bx-grid-alt"></i></span>
+                    <span class="navlink">Global</span>
+                </a>
+            </li>
+            <li class="item">
+                <a onclick="renderByWorker()" class="nav_link" id="btn-worker">
+                    <span class="navlink_icon"><i class="bx bx-user"></i></span>
+                    <span class="navlink">Workers</span>
+                </a>
+            </li>
+            <li class="item">
+                <a onclick="renderByBatch()" class="nav_link" id="btn-batch">
+                    <span class="navlink_icon"><i class="bx bx-layer"></i></span>
+                    <span class="navlink">Batches</span>
+                </a>
+            </li>
+            <li class="item">
+                <a onclick="renderTruthSet()" class="nav_link" id="btn-truth">
+                    <span class="navlink_icon"><i class="bx bx-check-shield"></i></span>
+                    <span class="navlink">Truth Set</span>
+                </a>
+            </li>
+        </ul>
+
+<ul class="menu_items">
+            <div class="menu_title">Maintenance</div>
+            <li class="item">
+                <a onclick="renderErreursFind()" class="nav_link" id="btn-erreurs">
+                    <span class="navlink_icon">
+                        <i class="bx bx-bug"></i>
+                        <span id="side-error-badge" class="error-badge-mini">0</span>
+                    </span>
+                    <span class="navlink">Erreur Find</span>
+                </a>
+            </li>
+            <li class="item">
+                <a onclick="renderCorrespondence()" class="nav_link" id="btn-correspondence">
+                    <span class="navlink_icon">
+                        <i class="bx bx-transfer-alt"></i>
+                        <span id="side-corresp-badge" class="error-badge-mini">0</span>
+                    </span>
+                    <span class="navlink">Erreurs Correspondance</span>
+                </a>
+            </li>
+            <li class="item">
+                <label for="fileInput" class="nav_link">
+                    <span class="navlink_icon"><i class="bx bx-cloud-upload"></i></span>
+                    <span class="navlink">Charger Fichiers</span>
+                </label>
+            </li>
+        </ul>
+
+        <ul class="menu_items">
+            <div class="menu_title">Export</div>
+            <li class="item"><a onclick="copier()" class="nav_link" style="background: #27ae60; border: none;"><span class="navlink_icon"><i class="bx bx-copy"></i></span><span class="navlink">Copier</span></a></li>
+        </ul>
+    </div>
+</nav>
+
+<main class="main-content">
+    <div class="upload-zone">
+        <input type="file" id="fileInput" multiple accept=".csv,.tsv,.xlsx" style="display:none;">
+        <p>Utilisez le bouton "Charger Fichiers" pour commencer.</p>
+    </div>
+    <div id="result">
+        <div style="text-align:center; padding-top:50px; opacity:0.3;">
+            <i class="bx bx-stats" style="font-size:80px;"></i>
+            <p>Aucune donnée à afficher</p>
+        </div>
+    </div>
+</main>
+
+<script>
+//regle de correction et detection d'erreur PROMPT
+/*la correspondance fonction , c'est le format et correction qui ne fonctione pas
+sauf erreur format
+tu verifie d'abord s'il y a d'autre symbole que [ ] , " ou espace
+si il y a espace tu suprime ensuite
+si il y a point . ou point-virgule ; tu les remplace par virgule , et ensuite tu lance le verif du format
+je vais de redifinir la regle  sur le guillemet alors, si elle est double tu la remplace d'abord par une seule et ensuite tu lance ses sequence de verif (idem pour les autre)
+elle dois tjr etr accompagne de ses symbole
+["
+"]
+","
+","
+
+autre que cela est une erreur
+ex: 
+X"X => remplacer par X","X
+X",X => remplacer par X","X
+X,"X => remplacer par X","X
+X""X => remplacer par X","X
+X""] => remplacer par X"] autre que cela remplacer par une seule
+[""X => remplacer par ["X
+
+
+de même pour les crochet [ et ]
+["
+"]
+autre que cela est une erreur 
+[X => remplacer par ["X
+X] => remplacer par X"]
+]] => remplacer par ]
+[[ => remplacer par [
+
+de même pour virgule ,
+tjr  ","
+autre que cela est une erreur 
+X,X  => remplacer par X","X
+X,"X  => remplacer par X","X
+X",X  => remplacer par X","X
+,]  => remplacer par "]
+[,  => remplacer par ["
+
+*/
+
+
+/*
+
+
+let rows = [];
+let dirtyData = []; 
+let correspErrors = []; 
+
+const OUTPUT_KEYS = ['COULD_NOT_CONCLUDE','DUPLICATE','UNIQUE',...new Set(Object.values(REASON_MAPPING))];
+
+// --- INITIALISATION ---
+const sidebar = document.querySelector(".sidebar");
+const sidebarOpen = document.querySelector("#sidebarOpen");
+sidebarOpen.addEventListener("click", () => sidebar.classList.toggle("close"));
+
+document.getElementById("fileInput").addEventListener("change", async e => {
+    rows = [];
+    const files = e.target.files;
+    const totalFiles = files.length;
+    const navbar = document.querySelector(".navbar");
+    document.getElementById("progress").textContent = "Chargement...";
+
+    for (let i = 0; i < totalFiles; i++) {
+        const file = files[i];
+        const percent = ((i + 1) / totalFiles) * 100;
+        navbar.style.background = `linear-gradient(90deg, #2e2e60 ${percent}%, var(--bg-panel) ${percent}%)`;
+
+        let dataToPush = [];
+        if (file.name.endsWith(".xlsx")) {
+            const data = await file.arrayBuffer();
+            const wb = XLSX.read(data, { type: "array" });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            dataToPush = XLSX.utils.sheet_to_json(ws, { defval: "" });
+        } else {
+            const text = await file.text();
+            const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+            dataToPush = parsed.data;
+        }
+        dataToPush.forEach(r => { r.fileName = file.name; });
+        rows.push(...dataToPush);
+    }
+    navbar.style.background = `var(--bg-panel)`;
+    calculateErrors();
+    document.getElementById("progress").textContent = `${rows.length} lignes chargées.`;
+    renderGlobal();
+});
+
+// --- UTILITAIRE DE NORMALISATION (POUR L'ORDRE DES MOTS) ---
+function normalizeReason(str) {
+    if (!str || typeof str !== 'string') return str;
+    try {
+        // Nettoyage de base avant de tenter de parser
+        let clean = str.trim().replace(/^'|'$/g, ""); 
+        let arr = JSON.parse(clean);
+        if (Array.isArray(arr)) {
+            return JSON.stringify(arr.sort()); // Trie LOGO, URL, TRADEMARK par ordre alphabétique
+        }
+    } catch (e) {
+        return str.trim();
+    }
+    return str.trim();
+}
+
+// --- LOGIQUE DE DÉTECTION ---
+function calculateErrors() {
+    dirtyData = [];
+    correspErrors = [];
+
+    rows.forEach(r => {
+        const val = (r.Answer_Reason || "").trim();
+        const type = (r.Answer_IsDupe || "").trim();
+        
+        if (val === "" && type === "") return;
+
+        // 1. Détection Erreurs de Format
+        let isDirty = false;
+        if (val !== "") {
+            // Détecte : points-virgules, espaces, doubles virgules, doubles guillemets, ou crochets manquants/doublés
+            if (val.includes(';') || val.includes(' ')) isDirty = true;
+            if (val.includes(',,') || val.includes('""')) isDirty = true;
+            if (val.startsWith('[[') || val.endsWith(']]')) isDirty = true;
+            if (!val.startsWith('["') || !val.endsWith('"]')) isDirty = true;
+        }
+        if (isDirty) dirtyData.push({ file: r.fileName, taskId: r.TaskID || "N/A", val: val });
+
+        // 2. Détection Correspondance (avec Normalisation de l'ordre)
+        const normVal = normalizeReason(val);
+        let isValidMapping = false;
+        
+        const checkList = (list) => list.map(item => normalizeReason(item)).includes(normVal);
+
+        if (type === "UNIQUE") isValidMapping = checkList(VALID_UNQ_LIST);
+        else if (type === "DUPLICATE") isValidMapping = checkList(VALID_DUPL_LIST);
+        else if (type === "COULD_NOT_CONCLUDE") isValidMapping = checkList(VALID_CNC_LIST);
+
+        if (!isValidMapping && type !== "" && val !== "") {
+            let correct = "UNKNOWN";
+            if (checkList(VALID_UNQ_LIST)) correct = "UNIQUE";
+            else if (checkList(VALID_DUPL_LIST)) correct = "DUPLICATE";
+            else if (checkList(VALID_CNC_LIST)) correct = "COULD_NOT_CONCLUDE";
+
+            correspErrors.push({ taskId: r.TaskID || "N/A", wrong: type, correct: correct, reason: val });
+        }
+    });
+    updateBadges();
+}
+
+// --- ACTIONS DE CORRECTION ---
+function appliquerCorrection() {
+    rows.forEach(r => {
+        if (r.Answer_Reason) {
+            let v = r.Answer_Reason.trim();
+            
+            // 1. Supprime les espaces et remplace ; par ,
+            v = v.replace(/\s+/g, '').replace(/;/g, ',');
+            
+            // 2. Nettoie les répétitions (,, ou "")
+            v = v.replace(/,,+/g, ',').replace(/"{2,}/g, '"');
+            
+            // 3. Nettoie les crochets mal formés (doublons ou inversions)
+            v = v.replace(/\[+/g, '').replace(/\]+/g, '');
+            
+            // 4. Force le format ["..."]
+            // On s'assure que le contenu commence et finit par une guillemet
+            if (!v.startsWith('"')) v = '"' + v;
+            if (!v.endsWith('"')) v = v + '"';
+            // On ajoute les crochets proprement
+            v = "[" + v + "]";
+            
+            r.Answer_Reason = v;
+        }
+    });
+    calculateErrors();
+    renderErreursFind();
+    alert("✅ Correction appliquée : Espaces, Ponctuation et Crochets formatés.");
+}
+
+function telechargerCorriger() {
+    if (rows.length === 0) return;
+    const csv = Papa.unparse(rows);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "export_valide.csv";
+    link.click();
+}
+
+// --- FONCTIONS DE RENDU (BADGES, TABLES) ---
+function updateBadges() {
+    const bFormat = document.getElementById("side-error-badge");
+    const bCorresp = document.getElementById("side-corresp-badge");
+    if (bFormat) { bFormat.textContent = dirtyData.length; bFormat.style.display = dirtyData.length > 0 ? "block" : "none"; }
+    if (bCorresp) { bCorresp.textContent = correspErrors.length; bCorresp.style.display = correspErrors.length > 0 ? "block" : "none"; }
+}
+
+function renderErreursFind() {
+    updateActive('btn-erreurs');
+    const resultDiv = document.getElementById("result");
+    resultDiv.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h3>⚠️ Erreurs de format (${dirtyData.length})</h3>
+            <div>
+                <button class="correction" onclick="appliquerCorrection()" style="margin-right:10px;">✨ Nettoyer & Réordonner</button>
+                <button class="correction" onclick="telechargerCorriger()" style="background:#2e2e60;">📥 Exporter CSV</button>
+            </div>
+        </div>
+    `;
+    if (dirtyData.length === 0) { resultDiv.innerHTML += "<p>Format impeccable.</p>"; return; }
+    draw(["TaskID", "Value", "Source"], dirtyData.map(d => [d.taskId, d.val, d.file]), "table-errors");
+}
+
+// ... Garde tes autres fonctions renderGlobal, renderCorrespondence, draw, copier telles quelles ...
+function renderGlobal() {
+    updateActive('btn-global');
+    const total = rows.length;
+    const counts = {};
+    OUTPUT_KEYS.forEach(k => counts[k] = 0);
+    rows.forEach(r => {
+        if (counts[r.Answer_IsDupe] !== undefined) counts[r.Answer_IsDupe]++;
+        const res = REASON_MAPPING[r.Answer_Reason] ?? null;
+        if (res && counts[res] !== undefined) counts[res]++;
+    });
+    const tableData = Object.keys(counts).map(k => [k, counts[k], total ? `${(counts[k]/total*100).toFixed(1)}%` : "0%"]);
+    tableData.push(["Grand Total", total, "100%"]);
+    draw(["Outcomes", "Count", "%"], tableData, "table-stats");
+}
+function renderCorrespondence() {
+    updateActive('btn-correspondence');
+    const resultDiv = document.getElementById("result");
+    resultDiv.innerHTML = `<h3 style="margin-bottom:15px;">🔄 Erreurs de Correspondance (${correspErrors.length})</h3>`;
+    if (correspErrors.length === 0) {
+        resultDiv.innerHTML += "<p>Aucun mismatch détecté.</p>";
+        return;
+    }
+    const headers = ["TaskID", "wrong", "correct", "reason"];
+    const data = correspErrors.map(err => [err.taskId, err.wrong, err.correct, err.reason]);
+    draw(headers, data, "table-errors");
+}
+
+
+
+function updateActive(id) {
+    document.querySelectorAll('.nav_link').forEach(a => a.classList.remove('active'));
+    if(id) document.getElementById(id).classList.add('active');
+}
+
+function draw(headers, data, customClass = ""){
+    const div = document.getElementById("result");
+    if(customClass === "table-stats") div.innerHTML = "";
+    const t = document.createElement("table");
+    t.className = customClass;
+    const thead = document.createElement("thead");
+    const trh = document.createElement("tr");
+    headers.forEach(h => { const th = document.createElement("th"); th.textContent = h; trh.appendChild(th); });
+    thead.appendChild(trh); t.appendChild(thead);
+    const tbody = document.createElement("tbody");
+    data.forEach(row => {
+        const tr = document.createElement("tr");
+        row.forEach((c, index) => { 
+            const td = document.createElement("td"); 
+            td.textContent = c; 
+            if (customClass === "table-errors" && headers[index] === "wrong") td.style.color = "#ff4444";
+            if (customClass === "table-errors" && headers[index] === "correct") td.style.color = "#00ff88";
+            td.onclick = function(e) {
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(this);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                e.stopPropagation();
+            };
+            tr.appendChild(td); 
+        });
+        tbody.appendChild(tr);
+    });
+    t.appendChild(tbody); div.appendChild(t);
+}*/
+/**
+ * SCRIPT GLOBAL - Gestion de données & Correction UI
+ */
+
+let rows = [];
+let dirtyData = []; 
+let correspErrors = []; 
+
+// --- CONFIGURATION ---
+const OUTPUT_KEYS = [
+    "COULD_NOT_CONCLUDE",
+    '["ALL_SOURCE_ARTIFACTS_ARE_NOT_LOADING"]',
+    '["ALL_TARGET_ARTIFACTS_ARE_NOT_LOADING"]',
+    '["ALL_SOURCE_ARTIFACTS_ARE_NOT_LOADING","ALL_TARGET_ARTIFACTS_ARE_NOT_LOADING"]',
+    '["SOURCE_BRAND_HAS_NO_BRAND_INFO"]',
+    '["TARGET_BRAND_HAS_NO_BRAND_INFO"]',
+    '["SOURCE_BRAND_HAS_NO_BRAND_INFO","TARGET_BRAND_HAS_NO_BRAND_INFO"]',
+    '["SOURCE_IS_MIXED_UP_AND_TRUTH_SET_NOT_APPLICABLE"]',
+    '["TARGET_IS_MIXED_UP_AND_TRUTH_SET_NOT_APPLICABLE"]',
+    '["SOURCE_IS_MIXED_UP_AND_TRUTH_SET_NOT_APPLICABLE","TARGET_IS_MIXED_UP_AND_TRUTH_SET_NOT_APPLICABLE"]',
+    '["SOURCE_BRAND_TRADEMARK_IS_INCONCLUSIVE"]',
+    '["TARGET_BRAND_TRADEMARK_IS_INCONCLUSIVE"]',
+    '["SOURCE_BRAND_TRADEMARK_IS_INCONCLUSIVE","TARGET_BRAND_TRADEMARK_IS_INCONCLUSIVE"]',
+    "DUPLICATE",
+    '["DUPLICATES_BASED_ON_TRUTH_SET_WITH_MIXED_UP_SOURCE","DUPLICATES_BASED_ON_TRUTH_SET_WITH_MIXED_UP_TARGET"]',
+    '["DUPLICATES_BASED_ON_TRUTH_SET_WITH_MIXED_UP_SOURCE"]',
+    '["DUPLICATES_BASED_ON_TRUTH_SET_WITH_MIXED_UP_TARGET"]',
+    '["DUPLICATES"]',
+    "UNIQUE",
+    '["COMPLETELY_DIFFERENT"]',
+    '["COMPLETELY_DIFFERENT_AND_SOURCE_HAS_MIXED_UP_ARTIFACTS","COMPLETELY_DIFFERENT_AND_TARGET_HAS_MIXED_UP_ARTIFACTS"]',
+    '["COMPLETELY_DIFFERENT_AND_SOURCE_HAS_MIXED_UP_ARTIFACTS"]',
+    '["COMPLETELY_DIFFERENT_AND_TARGET_HAS_MIXED_UP_ARTIFACTS"]',
+    '["COMPLETELY_DIFFERENT_BASED_ON_TRUTH_SET_WITH_MIXED_UP_SOURCE","COMPLETELY_DIFFERENT_BASED_ON_TRUTH_SET_WITH_MIXED_UP_TARGET"]',
+    '["COMPLETELY_DIFFERENT_BASED_ON_TRUTH_SET_WITH_MIXED_UP_SOURCE"]',
+    '["COMPLETELY_DIFFERENT_BASED_ON_TRUTH_SET_WITH_MIXED_UP_TARGET"]',
+    '["HOMONYMS"]',
+    '["HOMONYMS_BASED_ON_TRUTH_SET_WITH_MIXED_UP_SOURCE","HOMONYMS_BASED_ON_TRUTH_SET_WITH_MIXED_UP_TARGET"]',
+    '["HOMONYMS_BASED_ON_TRUTH_SET_WITH_MIXED_UP_SOURCE"]',
+    '["HOMONYMS_BASED_ON_TRUTH_SET_WITH_MIXED_UP_TARGET"]',
+    '["RELATED_BRANDS"]',
+    '["RELATED_BASED_ON_TRUTH_SET_WITH_MIXED_UP_SOURCE"]',
+    '["RELATED_BASED_ON_TRUTH_SET_WITH_MIXED_UP_TARGET"]',
+    '["RELATED_BASED_ON_TRUTH_SET_WITH_MIXED_UP_SOURCE","RELATED_BASED_ON_TRUTH_SET_WITH_MIXED_UP_TARGET"]'
+];
+
+
+// --- NORMALISATION DE CLÉ JSON ---
+// Trie alphabétiquement les éléments du tableau JSON
+// Permet de matcher ["B","A"] avec la clé ["A","B"] dans le mapping
+function normalizeKey(str) {
+    if (!str || typeof str !== 'string') return str;
+    try {
+        let clean = str.trim();
+        if (clean.startsWith("'") && clean.endsWith("'")) clean = clean.slice(1, -1);
+        const arr = JSON.parse(clean);
+        if (Array.isArray(arr)) return JSON.stringify(arr.map(s => String(s).trim()).sort());
+    } catch (e) {}
+    return str.trim();
+}
+
+// Table de lookup normalisée — construite une seule fois au démarrage
+const REASON_MAPPING_NORMALIZED = (() => {
+    const map = {};
+    for (const [rawKey, val] of Object.entries(REASON_MAPPING)) {
+        map[normalizeKey(rawKey)] = val;
+    }
+    return map;
+})();
+
+// Lookup avec normalisation — insensible à l'ordre des éléments JSON
+function getMappedReason(rawReason) {
+    if (!rawReason) return null;
+    return REASON_MAPPING_NORMALIZED[normalizeKey(rawReason)] ?? null;
+}
+
+// --- INITIALISATION UI ---
+const sidebar = document.querySelector(".sidebar");
+const sidebarOpen = document.querySelector("#sidebarOpen");
+if (sidebarOpen) {
+    sidebarOpen.addEventListener("click", () => sidebar.classList.toggle("close"));
+}
+
+// --- CHARGEMENT DES FICHIERS ---
+document.getElementById("fileInput").addEventListener("change", async e => {
+    rows = [];
+    const files = e.target.files;
+    const totalFiles = files.length;
+    const navbar = document.querySelector(".navbar");
+    document.getElementById("progress").textContent = "Chargement...";
+
+    for (let i = 0; i < totalFiles; i++) {
+        const file = files[i];
+        const percent = ((i + 1) / totalFiles) * 100;
+        
+        // Progression via background navbar
+        navbar.style.background = `linear-gradient(90deg, #2e2e60 ${percent}%, var(--bg-panel) ${percent}%)`;
+
+        let dataToPush = [];
+        if (file.name.endsWith(".xlsx")) {
+            const data = await file.arrayBuffer();
+            const wb = XLSX.read(data, { type: "array" });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            dataToPush = XLSX.utils.sheet_to_json(ws, { defval: "" });
+        } else {
+            const text = await file.text();
+            const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+            dataToPush = parsed.data;
+        }
+        dataToPush.forEach(r => {
+            r.fileName = file.name;
+            const ubc = (r.ubcInternalTaskId || "").trim();
+            const match = ubc.match(/^[^_]+_([a-f0-9\-]+)-MANUAL_BRAND_DEDUPLICATION$/i);
+            r.batchName = match ? "ManualBrandDeduplication_" + match[1] : file.name.replace(/_raw_results\.csv$/i, "");
+        });
+        rows.push(...dataToPush);
+    }
+    
+    navbar.style.background = `var(--bg-panel)`; // Reset navbar après chargement
+    calculateErrors();
+    document.getElementById("progress").textContent = `${rows.length} lignes chargées.`;
+    renderGlobal();
+});
+
+// --- UTILITAIRE DE NORMALISATION (ORDRE LOGO/URL) ---
+function normalize(reason) {
+    if (!reason) return "";
+    try {
+        let clean = reason.trim();
+        if (clean.startsWith("'") && clean.endsWith("'")) clean = clean.slice(1, -1);
+        
+        // On tente de parser le JSON (ex: ["LOGO","URL"])
+        let arr = JSON.parse(clean);
+        if (Array.isArray(arr)) {
+            // On trie alphabétiquement pour que ["URL","LOGO"] soit égal à ["LOGO","URL"]
+            return JSON.stringify(arr.map(s => String(s).trim()).sort());
+        }
+    } catch (e) {
+        return reason.trim(); 
+    }
+    return reason.trim();
+}
+
+// --- LOGIQUE DE DÉTECTION ---
+function calculateErrors() {
+    dirtyData = [];
+    correspErrors = [];
+
+    rows.forEach(r => {
+        const val = (r.Answer_Reason || "").trim();
+        const type = (r.Answer_IsDupe || "").trim();
+        
+        if (val === "" && type === "") return;
+
+        let isDirty = false;
+        if (val !== "") {
+            // RÈGLE 1: Caractères interdits ou parasites
+            if (/[.;\s]/.test(val)) isDirty = true;
+            
+            // RÈGLE 2: Doublons de symboles (,, ou "" ou [[ ou ]])
+            if (val.includes(',,') || val.includes('""') || val.includes('[[') || val.includes(']]')) isDirty = true;
+
+            // RÈGLE 3: Structure des extrémités
+            if (!val.startsWith('["') || !val.endsWith('"]')) isDirty = true;
+
+            // RÈGLE 4: Symboles orphelins à l'intérieur
+            let core = val.substring(2, val.length - 2);
+            // Si on enlève le motif valide "," il ne doit rester ni " ni ,
+            let checkInternal = core.split('","').join('');
+            if (checkInternal.includes('"') || checkInternal.includes(',')) isDirty = true;
+        }
+        
+        if (isDirty) dirtyData.push({ file: r.fileName, taskId: r.TaskID || "N/A", val: val });
+
+        // --- Correspondance (Mismatch) ---
+        const normVal = normalize(val);
+        const check = (list) => list.map(item => normalize(item)).includes(normVal);
+        let isValidMapping = false;
+        if (type === "UNIQUE") isValidMapping = check(VALID_UNQ_LIST);
+        else if (type === "DUPLICATE") isValidMapping = check(VALID_DUPL_LIST);
+        else if (type === "COULD_NOT_CONCLUDE") isValidMapping = check(VALID_CNC_LIST);
+
+        if (!isValidMapping && type !== "" && val !== "") {
+            let corr = "UNKNOWN";
+            if (check(VALID_UNQ_LIST)) corr = "UNIQUE";
+            else if (check(VALID_DUPL_LIST)) corr = "DUPLICATE";
+            else if (check(VALID_CNC_LIST)) corr = "COULD_NOT_CONCLUDE";
+            correspErrors.push({ taskId: r.TaskID || "N/A", wrong: type, correct: corr, reason: val });
+        }
+    });
+    updateBadges();
+}
+
+function appliquerCorrection() {
+    rows.forEach(r => {
+        if (r.Answer_Reason) {
+            let v = r.Answer_Reason.trim();
+
+            // --- ÉTAPE 1 : Nettoyage des caractères parasites ---
+            v = v.replace(/\s+/g, ''); // Supprime tous les espaces
+            v = v.replace(/[.;]+/g, ','); // . et ; deviennent des virgules
+
+            // --- ÉTAPE 2 : Gestion des cas de guillemets doubles et extrémités ---
+            // [" " X => ["X
+            v = v.replace(/^\["+/g, '["');
+            // X " " ] => X"]
+            v = v.replace(/"+\]$/g, '"]');
+            // [[ ou ]] => [ ou ]
+            v = v.replace(/\[+/g, '[').replace(/\]+/g, ']');
+
+            // --- ÉTAPE 3 : Extraction du contenu ---
+            // On enlève les crochets et guillemets de bordure pour travailler sur le texte pur
+            let content = v.replace(/^\["/, '').replace(/"\]$/, '');
+            // On enlève aussi les crochets simples s'ils traînent encore
+            content = content.replace(/[\[\]]/g, '');
+
+            // --- ÉTAPE 4 : Séparation et Reconstruction (La règle du X"X, X"",X etc.) ---
+            // On considère que n'importe quelle suite de " ou , (ex: "", ou ", ou ,") 
+            // est en fait une simple séparation entre deux mots.
+            let elements = content.split(/["",]+/).filter(el => el !== "");
+
+            // --- ÉTAPE 5 : Formatage Strict ---
+            // JSON.stringify recrée parfaitement le format ["MOT1","MOT2"]
+            // avec une seule virgule et des guillemets doubles là où il faut.
+            r.Answer_Reason = JSON.stringify(elements);
+        }
+    });
+    
+    calculateErrors(); // Relance la détection pour vider dirtyData
+    renderErreursFind(); // Rafraîchit le tableau
+    alert("✅ Correction effectuée selon les nouvelles règles de guillemets.");
+}
+
+// --- ACTIONS DE CORRECTION ---
+function appliquerCorrection() {
+    rows.forEach(r => {
+        if (r.Answer_Reason) {
+            let v = r.Answer_Reason.trim();
+
+            // 1. SEQUENCE DE PRE-NETTOYAGE
+            v = v.replace(/\s+/g, '');          // Supprime les espaces
+            v = v.replace(/[.;]+/g, ',');       // . et ; deviennent ,
+            v = v.replace(/"{2,}/g, '"');       // "" devient "
+            v = v.replace(/\[{2,}/g, '[');      // [[ devient [
+            v = v.replace(/\]{2,}/g, ']');      // ]] devient ]
+
+            // 2. RÉPARATION DES EXTRÉMITÉS (Crochets et virgules traînantes)
+            // Cas : [, => ["  et  ,] => "]
+            v = v.replace(/^\[,/g, '["').replace(/,\]$/g, '"]');
+            
+            // Si c'est juste du texte sans crochets : X => ["X"]
+            if (!v.startsWith('["')) {
+                if (v.startsWith('[')) v = v.replace('[', '["');
+                else v = '["' + v;
+            }
+            if (!v.endsWith('"]')) {
+                if (v.endsWith(']')) v = v.replace(']', '"]');
+                else v = v + '"]';
+            }
+
+            // 3. RÉPARATION INTERNE (Règle X"X, X",X, X,X -> X","X)
+            // On extrait ce qui est entre les symboles [" et "]
+            let core = v.substring(2, v.length - 2);
+
+            // On traite tous les séparateurs cassés (mélange de " et ,)
+            // L'idée est de réduire n'importe quelle suite de " et , en une seule virgule
+            core = core.replace(/["",]+/g, ',');
+
+            // On découpe par cette virgule pour avoir les mots propres
+            let elements = core.split(',').filter(el => el !== "");
+
+            // 4. RECONSTRUCTION JSON STRICTE
+            // JSON.stringify transformera ['LOGO', 'URL'] en ["LOGO","URL"]
+            // Cela garantit que chaque mot est entouré de " et séparé par ","
+            r.Answer_Reason = JSON.stringify(elements);
+        }
+    });
+
+    calculateErrors();
+    renderErreursFind();
+    alert("✅ Correction effectuée selon les règles de reconstruction.");
+}
+
+
+function telechargerCorriger() {
+    if (rows.length === 0) return;
+    const csv = Papa.unparse(rows);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "export_corrige.csv";
+    link.click();
+}
+
+// --- FONCTIONS DE RENDU ---
+function updateBadges() {
+    const bFormat = document.getElementById("side-error-badge");
+    const bCorresp = document.getElementById("side-corresp-badge");
+    if (bFormat) { bFormat.textContent = dirtyData.length; bFormat.style.display = dirtyData.length > 0 ? "block" : "none"; }
+    if (bCorresp) { bCorresp.textContent = correspErrors.length; bCorresp.style.display = correspErrors.length > 0 ? "block" : "none"; }
+}
+
+function renderGlobal() {
+    updateActive('btn-global');
+    const total = rows.length;
+    const counts = {};
+    
+    // Initialisation
+    OUTPUT_KEYS.forEach(k => counts[k] = 0);
+
+    rows.forEach(r => {
+        const type = r.Answer_IsDupe;
+        const reason = r.Answer_Reason;
+
+        // On compte le type (COULD_NOT_CONCLUDE, etc.)
+        if (counts[type] !== undefined) counts[type]++;
+        // On résout la raison via le mapping normalisé (insensible à l'ordre des éléments JSON)
+        const mapped = getMappedReason(reason);
+        if (mapped && counts[mapped] !== undefined) counts[mapped]++;
+    });
+
+    const tableData = OUTPUT_KEYS.map(k => [
+        k, 
+        counts[k], 
+        total ? `${((counts[k] / total) * 100).toFixed(1)}%` : "0%"
+    ]);
+    
+    tableData.push(["Grand Total", total, "100%"]);
+    draw(["Outcomes", "Count", "%"], tableData, "table-stats");
+}
+
+
+function renderErreursFind() {
+    updateActive('btn-erreurs');
+    const resultDiv = document.getElementById("result");
+    resultDiv.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h3>⚠️ Erreurs de format (${dirtyData.length})</h3>
+            <div>
+                <button class="correction" onclick="appliquerCorrection()" style="margin-right:10px;">✨ Nettoyer Format</button>
+                <button class="correction" onclick="telechargerCorriger()" style="background:#2e2e60;">📥 Télécharger CSV</button>
+            </div>
+        </div>
+    `;
+    if (dirtyData.length === 0) { resultDiv.innerHTML += "<p>Aucune erreur détectée.</p>"; return; }
+    draw(["TaskID", "Value", "Source"], dirtyData.map(d => [d.taskId, d.val, d.file]), "table-errors");
+}
+
+function renderCorrespondence() {
+    updateActive('btn-correspondence');
+    const resultDiv = document.getElementById("result");
+    resultDiv.innerHTML = `<h3 style="margin-bottom:15px;">🔄 Erreurs de Correspondance (${correspErrors.length})</h3>`;
+    if (correspErrors.length === 0) { resultDiv.innerHTML += "<p>Toutes les correspondances sont correctes.</p>"; return; }
+    draw(["TaskID", "wrong", "correct", "reason"], correspErrors.map(err => [err.taskId, err.wrong, err.correct, err.reason]), "table-errors");
+}
+
+function renderByWorker(){
+    updateActive('btn-worker');
+    const map = {};
+    rows.forEach(r => {
+        const date = r.SubmissionTime ? r.SubmissionTime.split(' ')[0] : "N/A";
+        const key = date + "|" + (r.AwsWorkerID || "Inconnu");
+        if (!map[key]) {
+            map[key] = { Date: date, Worker: r.AwsWorkerID || "Inconnu" };
+            OUTPUT_KEYS.forEach(k => map[key][k] = 0);
+        }
+        if (map[key][r.Answer_IsDupe] !== undefined) map[key][r.Answer_IsDupe]++;
+        const res = getMappedReason(r.Answer_Reason);
+        if (res && map[key][res] !== undefined) map[key][res]++;
+    });
+    const headers = ["Date", "Worker", ...OUTPUT_KEYS];
+    const data = Object.values(map).map(o => headers.map(h => o[h] ?? 0));
+    draw(headers, data, "table-stats");
+}
+
+function renderByBatch() {
+    updateActive('btn-batch');
+
+    // Regrouper par batchName (extrait de ubcInternalTaskId) ou fileName en fallback
+    const batchNames = [...new Set(rows.map(r => r.batchName || r.fileName))].sort();
+    const map = {};
+
+    OUTPUT_KEYS.forEach(k => {
+        map[k] = {};
+        batchNames.forEach(b => map[k][b] = 0);
+    });
+
+    // Total par batch pour les Contributions %
+    const batchTotals = {};
+    batchNames.forEach(b => batchTotals[b] = 0);
+
+    rows.forEach(r => {
+        const b = r.batchName || r.fileName;
+        const type = r.Answer_IsDupe;
+        const reason = r.Answer_Reason;
+
+        batchTotals[b]++;
+        if (map[type]) map[type][b]++;
+        const mapped = getMappedReason(reason);
+        if (mapped && map[mapped]) map[mapped][b]++;
+    });
+
+    // Double en-tête : ligne 1 = noms de batches (colspan 2), ligne 2 = Counts / Contributions %
+    const headerRow1 = ["Outcomes", ...batchNames.flatMap(b => [b, ""])];
+    const headerRow2 = ["", ...batchNames.flatMap(() => ["Counts", "Contributions %"])];
+
+    const tableData = OUTPUT_KEYS.map(k => [
+        k,
+        ...batchNames.flatMap(b => {
+            const count = map[k][b];
+            const pct = batchTotals[b] > 0 ? ((count / batchTotals[b]) * 100).toFixed(2).replace('.', ',') + "%" : "0,00%";
+            return [count, pct];
+        })
+    ]);
+
+    // Ligne Grand Total
+    const totals = ["Grand Total", ...batchNames.flatMap(b => [batchTotals[b], ""])];
+    tableData.push(totals);
+
+    drawBatch([headerRow1, headerRow2], tableData, "table-stats");
+}
+
+function renderTruthSet() {
+    updateActive('btn-truth');
+    const cols = ['targetTruthSetWebsite','targetTruthSetTrademark','targetTruthSetProduct1','targetTruthSetProduct2','sourceTruthSetWebsite','sourceTruthSetTrademark','sourceTruthSetProduct1','sourceTruthSetProduct2'];
+    const uniques = ['sourceUBI', 'targetUBI', 'TaskID'];
+    const fileNames = [...new Set(rows.map(r => r.fileName))].sort();
+    const countsMap = {}; const uniqueMap = {};
+    cols.forEach(c => { countsMap[c] = {}; fileNames.forEach(f => countsMap[c][f] = 0); });
+    uniques.forEach(u => { uniqueMap[u] = {}; fileNames.forEach(f => uniqueMap[u][f] = new Set()); });
+    rows.forEach(r => {
+        const f = r.fileName;
+        cols.forEach(c => { if(r[c] && String(r[c]).trim() !== "") countsMap[c][f]++; });
+        uniques.forEach(u => { if(r[u] && String(r[u]).trim() !== "") uniqueMap[u][f].add(r[u]); });
+    });
+    const data = [...cols.map(c => [c, ...fileNames.map(f => countsMap[c][f])]), ...uniques.map(u => ["Unique " + u, ...fileNames.map(f => uniqueMap[u][f].size)])];
+    draw(["Metrics", ...fileNames], data, "table-stats");
+}
+
+
+function draw(headers, data, customClass = ""){
+    const div = document.getElementById("result");
+    if(customClass === "table-stats") div.innerHTML = "";
+    const t = document.createElement("table");
+    t.className = customClass;
+    const thead = document.createElement("thead");
+    const trh = document.createElement("tr");
+    headers.forEach(h => { const th = document.createElement("th"); th.textContent = h; trh.appendChild(th); });
+    thead.appendChild(trh); t.appendChild(thead);
+    const tbody = document.createElement("tbody");
+    data.forEach(row => {
+        const tr = document.createElement("tr");
+        row.forEach((c, index) => { 
+            const td = document.createElement("td"); 
+            td.textContent = c; 
+            // Couleurs pour les erreurs de correspondance
+            if (customClass === "table-errors" && headers[index] === "wrong") td.style.color = "#ff4444";
+            if (customClass === "table-errors" && headers[index] === "correct") td.style.color = "#00ff88";
+            
+            // Sélection au clic
+            td.onclick = function(e) {
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(this);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                e.stopPropagation();
+            };
+            tr.appendChild(td); 
+        });
+        tbody.appendChild(tr);
+    });
+    t.appendChild(tbody); div.appendChild(t);
+}
+
+// drawBatch : double en-tête — ligne 1 = noms de batches (colspan 2), ligne 2 = Counts / Contributions %
+function drawBatch(headerRows, data, customClass = "") {
+    const div = document.getElementById("result");
+    div.innerHTML = "";
+    const t = document.createElement("table");
+    t.className = customClass;
+    const thead = document.createElement("thead");
+
+    // Ligne 1 : "Outcomes" + un th par batch avec colspan=2
+    const trh1 = document.createElement("tr");
+    headerRows[0].forEach((h, i) => {
+        if (h === "") return;
+        const th = document.createElement("th");
+        th.textContent = h;
+        if (i > 0) th.colSpan = 2;
+        trh1.appendChild(th);
+    });
+    thead.appendChild(trh1);
+
+    // Ligne 2 : vide + "Counts" / "Contributions %" pour chaque batch
+    const trh2 = document.createElement("tr");
+    headerRows[1].forEach(h => {
+        if (h === "") return;
+        const th = document.createElement("th");
+        th.textContent = h;
+        trh2.appendChild(th);
+    });
+    thead.appendChild(trh2);
+    t.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    data.forEach(row => {
+        const tr = document.createElement("tr");
+        row.forEach(c => {
+            const td = document.createElement("td");
+            td.textContent = c;
+            td.onclick = function(e) {
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(this);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                e.stopPropagation();
+            };
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+    t.appendChild(tbody);
+    div.appendChild(t);
+}
+
+function updateActive(id) {
+    document.querySelectorAll('.nav_link').forEach(a => a.classList.remove('active'));
+    if(id) {
+        const el = document.getElementById(id);
+        if(el) el.classList.add('active');
+    }
+}
+
+function copier(){
+    const t = document.querySelector("#result table");
+    if (!t) return;
+    const text = [...t.querySelectorAll("tr")].map(r => [...r.children].map(c => c.innerText).join("\t")).join("\n");
+    navigator.clipboard.writeText(text);
+    alert("✅ Données copiées !");
+}
+</script>
+
+</body>
+</html>
