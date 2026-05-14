@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -100,11 +101,15 @@
             text-align: center; font-size: 11px;
         }
         /* Style spécifique pour les données horizontales */
-        .table-stats td, .table-stats th { width: 80px; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .table-stats td, .table-stats th { width: 80px; max-width: 80px; min-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .table-stats td:first-child, .table-stats th:first-child {
             text-align: left; position: sticky; left: 0; background: #1a1a3a; z-index: 10;
-            width: 180px; max-width: 180px; min-width: 180px; border-right: 2px solid var(--primary-color);
+            width: 260px; max-width: 260px; min-width: 260px; border-right: 2px solid var(--primary-color);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
+        /* En-tête batch : nom de fichier et cellule vide forcés à 80px comme les données */
+        .table-stats thead th.batch-name,
+        .table-stats thead th.batch-empty { width: 80px; max-width: 80px; min-width: 80px; }
         
         /* Style spécifique pour le tableau d'erreurs */
         .table-errors td { text-align: left; white-space: normal; word-break: break-all; cursor: pointer; }
@@ -113,6 +118,32 @@
         thead th { background: #2e2e60; color: #7efff5; position: sticky; top: 0; z-index: 11; }
         tbody tr:nth-child(even) { background: rgba(255,255,255,0.03); }
         tbody tr:hover { background: rgba(156, 39, 176, 0.1); }
+
+        /* Toggle % */
+        .toggle-pct-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .toggle-pct {
+            display: flex; align-items: center; gap: 8px;
+            background: #2e2e60; border: 1px solid #444; border-radius: 20px;
+            padding: 5px 14px; cursor: pointer; font-size: 12px; color: #aaa;
+            user-select: none; transition: border-color 0.2s;
+        }
+        .toggle-pct:hover { border-color: var(--primary-color); }
+        .toggle-pct.active { border-color: #7efff5; color: #7efff5; }
+        .toggle-pct .dot {
+            width: 28px; height: 14px; background: #444; border-radius: 7px;
+            position: relative; transition: background 0.2s;
+        }
+        .toggle-pct.active .dot { background: var(--primary-color); }
+        .toggle-pct .dot::after {
+            content: ""; position: absolute; top: 2px; left: 2px;
+            width: 10px; height: 10px; background: white; border-radius: 50%;
+            transition: left 0.2s;
+        }
+        .toggle-pct.active .dot::after { left: 16px; }
+        /* Colonne % : légèrement plus étroite et couleur distincte */
+        .table-stats th.pct-col, .table-stats td.pct-col { color: #aaa; font-style: italic; max-width: 70px; width: 70px; }
+        /* Sous-en-tête batch */
+        thead tr.sub-header th { background: #1e1e4a; color: #ccc; font-weight: normal; font-size: 10px; }
 		.correction {
     padding: 8px 15px;
     background: #ff4444;
@@ -257,6 +288,247 @@ X",X  => remplacer par X","X
 */
 
 
+/*
+
+
+let rows = [];
+let dirtyData = []; 
+let correspErrors = []; 
+
+const OUTPUT_KEYS = ['COULD_NOT_CONCLUDE','DUPLICATE','UNIQUE',...new Set(Object.values(REASON_MAPPING))];
+
+// --- INITIALISATION ---
+const sidebar = document.querySelector(".sidebar");
+const sidebarOpen = document.querySelector("#sidebarOpen");
+sidebarOpen.addEventListener("click", () => sidebar.classList.toggle("close"));
+
+document.getElementById("fileInput").addEventListener("change", async e => {
+    rows = [];
+    const files = e.target.files;
+    const totalFiles = files.length;
+    const navbar = document.querySelector(".navbar");
+    document.getElementById("progress").textContent = "Chargement...";
+
+    for (let i = 0; i < totalFiles; i++) {
+        const file = files[i];
+        const percent = ((i + 1) / totalFiles) * 100;
+        navbar.style.background = `linear-gradient(90deg, #2e2e60 ${percent}%, var(--bg-panel) ${percent}%)`;
+
+        let dataToPush = [];
+        if (file.name.endsWith(".xlsx")) {
+            const data = await file.arrayBuffer();
+            const wb = XLSX.read(data, { type: "array" });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            dataToPush = XLSX.utils.sheet_to_json(ws, { defval: "" });
+        } else {
+            const text = await file.text();
+            const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+            dataToPush = parsed.data;
+        }
+        dataToPush.forEach(r => { r.fileName = file.name; });
+        rows.push(...dataToPush);
+    }
+    navbar.style.background = `var(--bg-panel)`;
+    calculateErrors();
+    document.getElementById("progress").textContent = `${rows.length} lignes chargées.`;
+    renderGlobal();
+});
+
+// --- UTILITAIRE DE NORMALISATION (POUR L'ORDRE DES MOTS) ---
+function normalizeReason(str) {
+    if (!str || typeof str !== 'string') return str;
+    try {
+        // Nettoyage de base avant de tenter de parser
+        let clean = str.trim().replace(/^'|'$/g, ""); 
+        let arr = JSON.parse(clean);
+        if (Array.isArray(arr)) {
+            return JSON.stringify(arr.sort()); // Trie LOGO, URL, TRADEMARK par ordre alphabétique
+        }
+    } catch (e) {
+        return str.trim();
+    }
+    return str.trim();
+}
+
+// --- LOGIQUE DE DÉTECTION ---
+function calculateErrors() {
+    dirtyData = [];
+    correspErrors = [];
+
+    rows.forEach(r => {
+        const val = (r.Answer_Reason || "").trim();
+        const type = (r.Answer_IsDupe || "").trim();
+        
+        if (val === "" && type === "") return;
+
+        // 1. Détection Erreurs de Format
+        let isDirty = false;
+        if (val !== "") {
+            // Détecte : points-virgules, espaces, doubles virgules, doubles guillemets, ou crochets manquants/doublés
+            if (val.includes(';') || val.includes(' ')) isDirty = true;
+            if (val.includes(',,') || val.includes('""')) isDirty = true;
+            if (val.startsWith('[[') || val.endsWith(']]')) isDirty = true;
+            if (!val.startsWith('["') || !val.endsWith('"]')) isDirty = true;
+        }
+        if (isDirty) dirtyData.push({ file: r.fileName, taskId: r.TaskID || "N/A", val: val });
+
+        // 2. Détection Correspondance (avec Normalisation de l'ordre)
+        const normVal = normalizeReason(val);
+        let isValidMapping = false;
+        
+        const checkList = (list) => list.map(item => normalizeReason(item)).includes(normVal);
+
+        if (type === "UNIQUE") isValidMapping = checkList(VALID_UNQ_LIST);
+        else if (type === "DUPLICATE") isValidMapping = checkList(VALID_DUPL_LIST);
+        else if (type === "COULD_NOT_CONCLUDE") isValidMapping = checkList(VALID_CNC_LIST);
+
+        if (!isValidMapping && type !== "" && val !== "") {
+            let correct = "UNKNOWN";
+            if (checkList(VALID_UNQ_LIST)) correct = "UNIQUE";
+            else if (checkList(VALID_DUPL_LIST)) correct = "DUPLICATE";
+            else if (checkList(VALID_CNC_LIST)) correct = "COULD_NOT_CONCLUDE";
+
+            correspErrors.push({ taskId: r.TaskID || "N/A", wrong: type, correct: correct, reason: val });
+        }
+    });
+    updateBadges();
+}
+
+// --- ACTIONS DE CORRECTION ---
+function appliquerCorrection() {
+    rows.forEach(r => {
+        if (r.Answer_Reason) {
+            let v = r.Answer_Reason.trim();
+            
+            // 1. Supprime les espaces et remplace ; par ,
+            v = v.replace(/\s+/g, '').replace(/;/g, ',');
+            
+            // 2. Nettoie les répétitions (,, ou "")
+            v = v.replace(/,,+/g, ',').replace(/"{2,}/g, '"');
+            
+            // 3. Nettoie les crochets mal formés (doublons ou inversions)
+            v = v.replace(/\[+/g, '').replace(/\]+/g, '');
+            
+            // 4. Force le format ["..."]
+            // On s'assure que le contenu commence et finit par une guillemet
+            if (!v.startsWith('"')) v = '"' + v;
+            if (!v.endsWith('"')) v = v + '"';
+            // On ajoute les crochets proprement
+            v = "[" + v + "]";
+            
+            r.Answer_Reason = v;
+        }
+    });
+    calculateErrors();
+    renderErreursFind();
+    alert("✅ Correction appliquée : Espaces, Ponctuation et Crochets formatés.");
+}
+
+function telechargerCorriger() {
+    if (rows.length === 0) return;
+    const csv = Papa.unparse(rows);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "export_valide.csv";
+    link.click();
+}
+
+// --- FONCTIONS DE RENDU (BADGES, TABLES) ---
+function updateBadges() {
+    const bFormat = document.getElementById("side-error-badge");
+    const bCorresp = document.getElementById("side-corresp-badge");
+    if (bFormat) { bFormat.textContent = dirtyData.length; bFormat.style.display = dirtyData.length > 0 ? "block" : "none"; }
+    if (bCorresp) { bCorresp.textContent = correspErrors.length; bCorresp.style.display = correspErrors.length > 0 ? "block" : "none"; }
+}
+
+function renderErreursFind() {
+    updateActive('btn-erreurs');
+    const resultDiv = document.getElementById("result");
+    resultDiv.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h3>⚠️ Erreurs de format (${dirtyData.length})</h3>
+            <div>
+                <button class="correction" onclick="appliquerCorrection()" style="margin-right:10px;">✨ Nettoyer & Réordonner</button>
+                <button class="correction" onclick="telechargerCorriger()" style="background:#2e2e60;">📥 Exporter CSV</button>
+            </div>
+        </div>
+    `;
+    if (dirtyData.length === 0) { resultDiv.innerHTML += "<p>Format impeccable.</p>"; return; }
+    draw(["TaskID", "Value", "Source"], dirtyData.map(d => [d.taskId, d.val, d.file]), "table-errors");
+}
+
+// ... Garde tes autres fonctions renderGlobal, renderCorrespondence, draw, copier telles quelles ...
+function renderGlobal() {
+    updateActive('btn-global');
+    const total = rows.length;
+    const counts = {};
+    OUTPUT_KEYS.forEach(k => counts[k] = 0);
+    rows.forEach(r => {
+        if (counts[r.Answer_IsDupe] !== undefined) counts[r.Answer_IsDupe]++;
+        const res = REASON_MAPPING[r.Answer_Reason] ?? null;
+        if (res && counts[res] !== undefined) counts[res]++;
+    });
+    const tableData = Object.keys(counts).map(k => [k, counts[k], total ? `${(counts[k]/total*100).toFixed(1)}%` : "0%"]);
+    tableData.push(["Grand Total", total, "100%"]);
+    draw(["Outcomes", "Count", "%"], tableData, "table-stats");
+}
+function renderCorrespondence() {
+    updateActive('btn-correspondence');
+    const resultDiv = document.getElementById("result");
+    resultDiv.innerHTML = `<h3 style="margin-bottom:15px;">🔄 Erreurs de Correspondance (${correspErrors.length})</h3>`;
+    if (correspErrors.length === 0) {
+        resultDiv.innerHTML += "<p>Aucun mismatch détecté.</p>";
+        return;
+    }
+    const headers = ["TaskID", "wrong", "correct", "reason"];
+    const data = correspErrors.map(err => [err.taskId, err.wrong, err.correct, err.reason]);
+    draw(headers, data, "table-errors");
+}
+
+
+
+function updateActive(id) {
+    document.querySelectorAll('.nav_link').forEach(a => a.classList.remove('active'));
+    if(id) document.getElementById(id).classList.add('active');
+}
+
+function draw(headers, data, customClass = ""){
+    const div = document.getElementById("result");
+    if(customClass === "table-stats") div.innerHTML = "";
+    const t = document.createElement("table");
+    t.className = customClass;
+    const thead = document.createElement("thead");
+    const trh = document.createElement("tr");
+    headers.forEach(h => { const th = document.createElement("th"); th.textContent = h; trh.appendChild(th); });
+    thead.appendChild(trh); t.appendChild(thead);
+    const tbody = document.createElement("tbody");
+    data.forEach(row => {
+        const tr = document.createElement("tr");
+        row.forEach((c, index) => { 
+            const td = document.createElement("td"); 
+            td.textContent = c; 
+            if (customClass === "table-errors" && headers[index] === "wrong") td.style.color = "#ff4444";
+            if (customClass === "table-errors" && headers[index] === "correct") td.style.color = "#00ff88";
+            td.onclick = function(e) {
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(this);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                e.stopPropagation();
+            };
+            tr.appendChild(td); 
+        });
+        tbody.appendChild(tr);
+    });
+    t.appendChild(tbody); div.appendChild(t);
+}*/
+/**
+ * SCRIPT GLOBAL - Gestion de données & Correction UI
+ */
+
 let rows = [];
 let dirtyData = []; 
 let correspErrors = []; 
@@ -300,6 +572,35 @@ const OUTPUT_KEYS = [
 ];
 
 
+// --- NORMALISATION DE CLÉ JSON ---
+// Trie alphabétiquement les éléments du tableau JSON
+// Permet de matcher ["B","A"] avec la clé ["A","B"] dans le mapping
+function normalizeKey(str) {
+    if (!str || typeof str !== 'string') return str;
+    try {
+        let clean = str.trim();
+        if (clean.startsWith("'") && clean.endsWith("'")) clean = clean.slice(1, -1);
+        const arr = JSON.parse(clean);
+        if (Array.isArray(arr)) return JSON.stringify(arr.map(s => String(s).trim()).sort());
+    } catch (e) {}
+    return str.trim();
+}
+
+// Table de lookup normalisée — construite une seule fois au démarrage
+const REASON_MAPPING_NORMALIZED = (() => {
+    const map = {};
+    for (const [rawKey, val] of Object.entries(REASON_MAPPING)) {
+        map[normalizeKey(rawKey)] = val;
+    }
+    return map;
+})();
+
+// Lookup avec normalisation — insensible à l'ordre des éléments JSON
+function getMappedReason(rawReason) {
+    if (!rawReason) return null;
+    return REASON_MAPPING_NORMALIZED[normalizeKey(rawReason)] ?? null;
+}
+
 // --- INITIALISATION UI ---
 const sidebar = document.querySelector(".sidebar");
 const sidebarOpen = document.querySelector("#sidebarOpen");
@@ -313,23 +614,14 @@ document.getElementById("fileInput").addEventListener("change", async e => {
     const files = e.target.files;
     const totalFiles = files.length;
     const navbar = document.querySelector(".navbar");
-    const progressText = document.getElementById("progress");
-    
-    // Couleur Fluo
-    const fluoColor = "#00fbff"; 
-    const darkBg = "var(--bg-panel)";
+    document.getElementById("progress").textContent = "Chargement...";
 
-    progressText.textContent = "Lecture des fichiers...";
-    navbar.style.boxShadow = `0 0 15px ${fluoColor}`; // Effet de lueur fluo
-
-    // --- PHASE 1 : CHARGEMENT (0% -> 70%) ---
     for (let i = 0; i < totalFiles; i++) {
         const file = files[i];
-        const loadPercent = Math.round(((i + 1) / totalFiles) * 70);
+        const percent = ((i + 1) / totalFiles) * 100;
         
-        // Application du dégradé Bleu Ciel Fluo
-        navbar.style.background = `linear-gradient(90deg, ${fluoColor} ${loadPercent}%, ${darkBg} ${loadPercent}%)`;
-        progressText.textContent = `Chargement : ${Math.round((i+1)/totalFiles*100)}%`;
+        // Progression via background navbar
+        navbar.style.background = `linear-gradient(90deg, #2e2e60 ${percent}%, var(--bg-panel) ${percent}%)`;
 
         let dataToPush = [];
         if (file.name.endsWith(".xlsx")) {
@@ -342,30 +634,20 @@ document.getElementById("fileInput").addEventListener("change", async e => {
             const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
             dataToPush = parsed.data;
         }
-        dataToPush.forEach(r => { r.fileName = file.name; });
+        dataToPush.forEach(r => {
+            r.fileName = file.name;
+            const ubc = (r.ubcInternalTaskId || "").trim();
+            const match = ubc.match(/^[^_]+_([a-f0-9\-]+)-MANUAL_BRAND_DEDUPLICATION$/i);
+            r.batchName = match ? "ManualBrandDeduplication_" + match[1] : file.name.replace(/_raw_results\.csv$/i, "");
+        });
         rows.push(...dataToPush);
     }
-
-    // --- PHASE 2 : TRAITEMENT (70% -> 100%) ---
-    progressText.textContent = "Analyse et rendu des résultats...";
     
-    setTimeout(() => {
-        // Avancement manuel pour simuler le calcul
-        navbar.style.background = `linear-gradient(90deg, ${fluoColor} 85%, ${darkBg} 85%)`;
-        calculateErrors();
-        
-        navbar.style.background = `linear-gradient(90deg, ${fluoColor} 100%, ${darkBg} 100%)`;
-        renderGlobal(); 
-
-        // Reset final
-        setTimeout(() => {
-            navbar.style.background = darkBg;
-            navbar.style.boxShadow = "none"; // On enlève la lueur
-            progressText.textContent = `${rows.length} lignes prêtes.`;
-        }, 800);
-    }, 50);
+    navbar.style.background = `var(--bg-panel)`; // Reset navbar après chargement
+    calculateErrors();
+    document.getElementById("progress").textContent = `${rows.length} lignes chargées.`;
+    renderGlobal();
 });
-
 
 // --- UTILITAIRE DE NORMALISATION (ORDRE LOGO/URL) ---
 function normalize(reason) {
@@ -528,31 +810,14 @@ function appliquerCorrection() {
 
 
 function telechargerCorriger() {
-    if (rows.length === 0) {
-        alert("Aucune donnée à exporter.");
-        return;
-    }
-
-    // On utilise Papa.unparse avec le délimiteur tabulation '\t'
-    const tsv = Papa.unparse(rows, {
-        delimiter: "\t",
-        header: true
-    });
-
-    // Création du Blob avec le type MIME pour TSV
-    const blob = new Blob([tsv], { type: 'text/tab-separated-values;charset=utf-8;' });
+    if (rows.length === 0) return;
+    const csv = Papa.unparse(rows);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    
     const link = document.createElement("a");
     link.href = url;
-    
-    // Nom du fichier avec extension .tsv
-    const timestamp = new Date().toISOString().slice(0,10);
-    link.download = `export_corrige_${timestamp}.tsv`;
-    
-    document.body.appendChild(link);
+    link.download = "export_corrige.csv";
     link.click();
-    document.body.removeChild(link);
 }
 
 // --- FONCTIONS DE RENDU ---
@@ -577,8 +842,9 @@ function renderGlobal() {
 
         // On compte le type (COULD_NOT_CONCLUDE, etc.)
         if (counts[type] !== undefined) counts[type]++;
-        // On compte la raison exacte (la chaîne ["..."])
-        if (counts[reason] !== undefined) counts[reason]++;
+        // On résout la raison via le mapping normalisé (insensible à l'ordre des éléments JSON)
+        const mapped = getMappedReason(reason);
+        if (mapped && counts[mapped] !== undefined) counts[mapped]++;
     });
 
     const tableData = OUTPUT_KEYS.map(k => [
@@ -600,12 +866,12 @@ function renderErreursFind() {
             <h3>⚠️ Erreurs de format (${dirtyData.length})</h3>
             <div>
                 <button class="correction" onclick="appliquerCorrection()" style="margin-right:10px;">✨ Nettoyer Format</button>
-                <button class="correction" onclick="telechargerCorriger()" style="background:#2e2e60;">📥 Télécharger TSV</button>
+                <button class="correction" onclick="telechargerCorriger()" style="background:#2e2e60;">📥 Télécharger CSV</button>
             </div>
         </div>
     `;
     if (dirtyData.length === 0) { resultDiv.innerHTML += "<p>Aucune erreur détectée.</p>"; return; }
-    draw(["TaskID", "answerReason", "Source"], dirtyData.map(d => [d.taskId, d.val, d.file]), "table-errors");
+    draw(["TaskID", "Value", "Source"], dirtyData.map(d => [d.taskId, d.val, d.file]), "table-errors");
 }
 
 function renderCorrespondence() {
@@ -613,7 +879,7 @@ function renderCorrespondence() {
     const resultDiv = document.getElementById("result");
     resultDiv.innerHTML = `<h3 style="margin-bottom:15px;">🔄 Erreurs de Correspondance (${correspErrors.length})</h3>`;
     if (correspErrors.length === 0) { resultDiv.innerHTML += "<p>Toutes les correspondances sont correctes.</p>"; return; }
-    draw(["TaskID", "wrong_answerDupe", "correct_answerDupe", "answerReason"], correspErrors.map(err => [err.taskId, err.wrong, err.correct, err.reason]), "table-errors");
+    draw(["TaskID", "wrong", "correct", "reason"], correspErrors.map(err => [err.taskId, err.wrong, err.correct, err.reason]), "table-errors");
 }
 
 function renderByWorker(){
@@ -627,7 +893,7 @@ function renderByWorker(){
             OUTPUT_KEYS.forEach(k => map[key][k] = 0);
         }
         if (map[key][r.Answer_IsDupe] !== undefined) map[key][r.Answer_IsDupe]++;
-        const res = REASON_MAPPING[r.Answer_Reason] ?? null;
+        const res = getMappedReason(r.Answer_Reason);
         if (res && map[key][res] !== undefined) map[key][res]++;
     });
     const headers = ["Date", "Worker", ...OUTPUT_KEYS];
@@ -635,38 +901,199 @@ function renderByWorker(){
     draw(headers, data, "table-stats");
 }
 
+let showPct = false; // état global du toggle %
+
 function renderByBatch() {
     updateActive('btn-batch');
-    const fileNames = [...new Set(rows.map(r => r.fileName))].sort();
-    const map = {};
+    const div = document.getElementById("result");
 
-    // Initialisation du dictionnaire à double entrée
-    OUTPUT_KEYS.forEach(k => { 
-        map[k] = {}; 
-        fileNames.forEach(f => map[k][f] = 0); 
+    // Barre de toggle
+    div.innerHTML = `
+        <div class="toggle-pct-bar">
+            <div class="toggle-pct${showPct ? ' active' : ''}" id="toggle-pct-btn" onclick="togglePct()">
+                <div class="dot"></div>
+                <span>Contributions %</span>
+            </div>
+        </div>
+        <div id="batch-table"></div>
+    `;
+
+    drawBatchTable();
+}
+
+function togglePct() {
+    showPct = !showPct;
+    const btn = document.getElementById("toggle-pct-btn");
+    if (btn) btn.className = "toggle-pct" + (showPct ? " active" : "");
+    drawBatchTable();
+}
+
+function drawBatchTable() {
+    const fileNames = [...new Set(rows.map(r => r.fileName))].sort();
+
+    // Nettoyer le nom de fichier : supprimer extension, puis _raw, _FA, results
+    function cleanFileName(name) {
+        return name
+            .replace(/\.[^.]+$/, '')                          // extension
+            .replace(/[_\-]?(raw|results|_FA)\b/gi, '')       // mots parasites
+            .replace(/[_\-]+$/, '');                           // tirets/underscores finaux
+    }
+
+    const map = {};
+    OUTPUT_KEYS.forEach(k => {
+        map[k] = {};
+        fileNames.forEach(f => map[k][f] = 0);
     });
+
+    const fileTotals = {};
+    fileNames.forEach(f => fileTotals[f] = 0);
 
     rows.forEach(r => {
         const f = r.fileName;
-        const type = r.Answer_IsDupe;
-        const reason = r.Answer_Reason;
-
-        if (map[type]) map[type][f]++;
-        if (map[reason]) map[reason][f]++;
+        fileTotals[f]++;
+        if (map[r.Answer_IsDupe]) map[r.Answer_IsDupe][f]++;
+        const mapped = getMappedReason(r.Answer_Reason);
+        if (mapped && map[mapped]) map[mapped][f]++;
     });
 
-    const tableData = OUTPUT_KEYS.map(k => [
-        k, 
-        ...fileNames.map(f => map[k][f])
-    ]);
+    const container = document.getElementById("batch-table");
+    if (!container) return;
+    container.innerHTML = "";
+
+    const t = document.createElement("table");
+    t.className = "table-stats";
+    t.style.tableLayout = "fixed";
+
+    // Colgroup : force largeurs uniformes
+    const colgroup = document.createElement("colgroup");
+    const colFirst = document.createElement("col");
+    colFirst.style.width = "260px";
+    colgroup.appendChild(colFirst);
+    const colCount = showPct ? fileNames.length * 2 : fileNames.length;
+    for (let i = 0; i < colCount; i++) {
+        const col = document.createElement("col");
+        col.style.width = "80px";
+        colgroup.appendChild(col);
+    }
+    t.appendChild(colgroup);
+
+    const thead = document.createElement("thead");
+
+    if (showPct) {
+        // Ligne 1 : "Outcomes" (rowspan=3) + nom fichier | cellule vide — PAS de colspan
+        const trh1 = document.createElement("tr");
+        const th0 = document.createElement("th");
+        th0.rowSpan = 3;
+        th0.textContent = "Outcomes";
+        trh1.appendChild(th0);
+        fileNames.forEach(f => {
+            const thName = document.createElement("th");
+            thName.textContent = cleanFileName(f);
+            thName.className = "batch-name";
+            const thEmpty = document.createElement("th");
+            thEmpty.textContent = "";
+            thEmpty.className = "batch-empty";
+            trh1.appendChild(thName);
+            trh1.appendChild(thEmpty);
+        });
+        thead.appendChild(trh1);
+
+        // Ligne 2 : ligne vide (séparateur visuel)
+        const trEmpty = document.createElement("tr");
+        trEmpty.className = "sub-header";
+        fileNames.forEach(() => {
+            const td1 = document.createElement("th");
+            td1.textContent = "";
+            const td2 = document.createElement("th");
+            td2.textContent = "";
+            trEmpty.appendChild(td1);
+            trEmpty.appendChild(td2);
+        });
+        thead.appendChild(trEmpty);
+
+        // Ligne 3 : "Counts" + "Contributions %" par fichier
+        const trh2 = document.createElement("tr");
+        trh2.className = "sub-header";
+        fileNames.forEach(() => {
+            const thC = document.createElement("th");
+            thC.textContent = "Counts";
+            const thP = document.createElement("th");
+            thP.textContent = "Contributions %";
+            thP.className = "pct-col";
+            trh2.appendChild(thC);
+            trh2.appendChild(thP);
+        });
+        thead.appendChild(trh2);
+    } else {
+        // En-tête simple : une colonne par fichier, nom nettoyé
+        const trh = document.createElement("tr");
+        const th0 = document.createElement("th");
+        th0.textContent = "Outcomes";
+        trh.appendChild(th0);
+        fileNames.forEach(f => {
+            const th = document.createElement("th");
+            th.textContent = cleanFileName(f);
+            trh.appendChild(th);
+        });
+        thead.appendChild(trh);
+    }
+
+    t.appendChild(thead);
+    const tbody = document.createElement("tbody");
+
+    // Lignes de données
+    OUTPUT_KEYS.forEach(k => {
+        const tr = document.createElement("tr");
+        const tdKey = document.createElement("td");
+        tdKey.textContent = k;
+        tr.appendChild(tdKey);
+        fileNames.forEach(f => {
+            const count = map[k][f];
+            const tdC = document.createElement("td");
+            tdC.textContent = count;
+            tdC.onclick = selectCell;
+            tr.appendChild(tdC);
+            if (showPct) {
+                const tdP = document.createElement("td");
+                tdP.className = "pct-col";
+                const total = fileTotals[f];
+                tdP.textContent = total > 0 ? ((count / total) * 100).toFixed(2).replace('.', ',') + "%" : "0,00%";
+                tdP.onclick = selectCell;
+                tr.appendChild(tdP);
+            }
+        });
+        tbody.appendChild(tr);
+    });
 
     // Ligne Grand Total
-    const totals = ["Grand Total", ...fileNames.map(f => {
-        return rows.filter(r => r.fileName === f).length;
-    })];
-    tableData.push(totals);
+    const trTotal = document.createElement("tr");
+    const tdTotalLabel = document.createElement("td");
+    tdTotalLabel.textContent = "Grand Total";
+    trTotal.appendChild(tdTotalLabel);
+    fileNames.forEach(f => {
+        const tdT = document.createElement("td");
+        tdT.textContent = fileTotals[f];
+        trTotal.appendChild(tdT);
+        if (showPct) {
+            const tdP = document.createElement("td");
+            tdP.className = "pct-col";
+            tdP.textContent = "";
+            trTotal.appendChild(tdP);
+        }
+    });
+    tbody.appendChild(trTotal);
 
-    draw(["Outcomes", ...fileNames], tableData, "table-stats");
+    t.appendChild(tbody);
+    container.appendChild(t);
+}
+
+function selectCell(e) {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(this);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    e.stopPropagation();
 }
 
 function renderTruthSet() {
@@ -703,8 +1130,8 @@ function draw(headers, data, customClass = ""){
             const td = document.createElement("td"); 
             td.textContent = c; 
             // Couleurs pour les erreurs de correspondance
-            if (customClass === "table-errors" && headers[index] === "wrong_answerDupe") td.style.color = "#ff4444";
-            if (customClass === "table-errors" && headers[index] === "correct_answerDupe") td.style.color = "#00ff88";
+            if (customClass === "table-errors" && headers[index] === "wrong") td.style.color = "#ff4444";
+            if (customClass === "table-errors" && headers[index] === "correct") td.style.color = "#00ff88";
             
             // Sélection au clic
             td.onclick = function(e) {
@@ -720,6 +1147,58 @@ function draw(headers, data, customClass = ""){
         tbody.appendChild(tr);
     });
     t.appendChild(tbody); div.appendChild(t);
+}
+
+// drawBatch : double en-tête — ligne 1 = noms de batches (colspan 2), ligne 2 = Counts / Contributions %
+function drawBatch(headerRows, data, customClass = "") {
+    const div = document.getElementById("result");
+    div.innerHTML = "";
+    const t = document.createElement("table");
+    t.className = customClass;
+    const thead = document.createElement("thead");
+
+    // Ligne 1 : "Outcomes" + un th par batch avec colspan=2
+    const trh1 = document.createElement("tr");
+    headerRows[0].forEach((h, i) => {
+        if (h === "") return;
+        const th = document.createElement("th");
+        th.textContent = h;
+        if (i > 0) th.colSpan = 2;
+        trh1.appendChild(th);
+    });
+    thead.appendChild(trh1);
+
+    // Ligne 2 : vide + "Counts" / "Contributions %" pour chaque batch
+    const trh2 = document.createElement("tr");
+    headerRows[1].forEach(h => {
+        if (h === "") return;
+        const th = document.createElement("th");
+        th.textContent = h;
+        trh2.appendChild(th);
+    });
+    thead.appendChild(trh2);
+    t.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    data.forEach(row => {
+        const tr = document.createElement("tr");
+        row.forEach(c => {
+            const td = document.createElement("td");
+            td.textContent = c;
+            td.onclick = function(e) {
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(this);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                e.stopPropagation();
+            };
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+    t.appendChild(tbody);
+    div.appendChild(t);
 }
 
 function updateActive(id) {
