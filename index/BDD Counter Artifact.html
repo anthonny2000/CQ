@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>BDD Counter Artifact - Glow Edition</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0f172a; color: #f8fafc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }
+    .container { max-width: 1400px; margin: 0 auto; }
+    
+    /* Effets Glow */
+    .glow-text { text-shadow: 0 0 10px rgba(0, 210, 255, 0.7); }
+    .section { 
+      background: #1e293b; 
+      border: 1px solid #334155; 
+      border-radius: 12px; 
+      padding: 25px; 
+      margin-bottom: 20px; 
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+
+    /* Stats Grid */
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
+    .stat-card { 
+      background: rgba(30, 41, 59, 0.8); 
+      border: 1px solid #00d2ff; 
+      padding: 15px; 
+      border-radius: 10px; 
+      text-align: center;
+      box-shadow: inset 0 0 10px rgba(0, 210, 255, 0.1);
+      transition: transform 0.3s;
+    }
+    .stat-card:hover { transform: translateY(-5px); box-shadow: 0 0 15px rgba(0, 210, 255, 0.4); }
+    .stat-card .value { font-size: 22px; font-weight: bold; color: #00d2ff; display: block; }
+    .stat-card .label { font-size: 10px; text-transform: uppercase; color: #94a3b8; margin-top: 5px; }
+
+    /* Progress Bar */
+    .progress-container { width: 100%; background: #0f172a; border-radius: 10px; height: 10px; margin: 20px 0; display: none; overflow: hidden; border: 1px solid #334155; }
+    .progress-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #00d2ff, #00ffaa); box-shadow: 0 0 10px #00d2ff; transition: width 0.3s; }
+
+    .upload-area { border: 2px dashed #00d2ff; padding: 30px; text-align: center; cursor: pointer; border-radius: 8px; transition: 0.3s; }
+    .upload-area:hover { background: rgba(0, 210, 255, 0.05); border-style: solid; }
+    
+    .btn { background: #00d2ff; color: #0f172a; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: bold; margin: 5px; text-transform: uppercase; font-size: 11px; }
+    .btn:hover { background: #00f2ff; box-shadow: 0 0 20px rgba(0, 210, 255, 0.5); }
+
+    .output-table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 11px; background: #111827; }
+    .output-table th { background: #334155; color: #00d2ff; padding: 12px; border: 1px solid #475569; position: sticky; top: 0; }
+    .output-table td { padding: 10px; border: 1px solid #1f2937; text-align: center; }
+    .output-table tr:hover { background: #1e293b; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1 class="glow-text" style="color:#00d2ff; text-align:center; margin-bottom:30px; letter-spacing: 2px;">📊 BDD Counter Artifact PRO</h1>
+
+  <!-- Stats Container -->
+  <div class="stats" id="statsContainer">
+    <div class="stat-card"><div class="value" id="stat-lines">0</div><div class="label">Total Lignes</div></div>
+    <div class="stat-card"><div class="value" id="stat-tm">0</div><div class="label">Total Trademark</div></div>
+    <div class="stat-card"><div class="value" id="stat-br">0</div><div class="label">Total BrandRep</div></div>
+    <div class="stat-card"><div class="value" id="stat-dup">0</div><div class="label">Total DUPLICATE</div></div>
+    <div class="stat-card"><div class="value" id="stat-cnc">0</div><div class="label">Total CNC</div></div>
+    <div class="stat-card"><div class="value" id="stat-unq">0</div><div class="label">Total UNIQUE</div></div>
+    <div class="stat-card"><div class="value" id="stat-ttt">NaN</div><div class="label">Temps Moyen TTT</div></div>
+  </div>
+
+  <div class="section">
+    <div class="upload-area" onclick="$('#fileInput').click()">
+      <p style="font-size: 16px;">📂 Cliquez pour charger vos fichiers CSV, TSV ou XLSX</p>
+    </div>
+    <input type="file" id="fileInput" multiple accept=".csv,.tsv,.xlsx,.xls" style="display:none">
+    
+    <div class="progress-container" id="progressWrap">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <div style="text-align:center; margin-top:20px;">
+      <button class="btn" onclick="processFiles()">🚀 Lancer l'Analyse</button>
+      <button class="btn" style="background:#475569; color:white;" onclick="location.reload()">🔄 Reset</button>
+    </div>
+  </div>
+
+  <div class="section" id="resultsSection" style="display:none;">
+    <div style="text-align:center; margin-bottom:15px;">
+      <button class="btn" onclick="renderTable('output1')">WID View</button>
+      <button class="btn" onclick="renderTable('output2')">Date + WID</button>
+      <button class="btn" onclick="renderTable('output3')">File View</button>
+      <button class="btn" style="background:#10b981; color:white;" onclick="copyToClipboard()">📋 Copier pour Excel</button>
+    </div>
+    <div style="overflow-x:auto; max-height: 500px; border: 1px solid #334155;">
+      <table class="output-table" id="outputTable"></table>
+    </div>
+  </div>
+</div>
+
+<script>
+let masterData = [];
+const GMT_OFFSET = 3 * 60 * 60 * 1000;
+
+const COLUMNS = {
+  TRADEMARK: [
+    'targetTrademark1RegistrationNumber',
+    'targetTrademark2RegistrationNumber',
+    'targetTrademark3RegistrationNumber',
+    'sourceTrademark1RegistrationNumber',
+    'sourceTrademark2RegistrationNumber',
+    'sourceTrademark3RegistrationNumber'
+  ],
+  BRAND: [
+    'sourceBrandRepresentation1WebsiteURLs',
+    'sourceBrandRepresentation1ProductURLs',
+    'sourceBrandRepresentation2WebsiteURLs',
+    'sourceBrandRepresentation2ProductURLs',
+    'sourceBrandRepresentation3WebsiteURLs',
+    'sourceBrandRepresentation3ProductURLs',
+    'sourceBrandRepresentation4WebsiteURLs',
+    'sourceBrandRepresentation4ProductURLs',
+    'sourceBrandRepresentation5WebsiteURLs',
+    'sourceBrandRepresentation5ProductURLs',
+    'targetBrandRepresentation1WebsiteURLs',
+    'targetBrandRepresentation1ProductURLs',
+    'targetBrandRepresentation2WebsiteURLs',
+    'targetBrandRepresentation2ProductURLs',
+    'targetBrandRepresentation3WebsiteURLs',
+    'targetBrandRepresentation3ProductURLs',
+    'targetBrandRepresentation4ProductURLs',
+    'targetBrandRepresentation5WebsiteURLs',
+    'targetBrandRepresentation4WebsiteURLs',
+    'targetBrandRepresentation5ProductURLs',
+    'sourceBrandRepresentation1Name',
+    'sourceBrandRepresentation2Name',
+    'sourceBrandRepresentation3Name',
+    'sourceBrandRepresentation4Name',
+    'sourceBrandRepresentation5Name',
+    'targetBrandRepresentation1Name',
+    'targetBrandRepresentation2Name',
+    'targetBrandRepresentation3Name',
+    'targetBrandRepresentation4Name',
+    'targetBrandRepresentation5Name'
+  ],
+  TS_TM: ['targetTruthSetTrademark', 'sourceTruthSetTrademark'],
+  TS_WS: ['targetTruthSetWebsite', 'sourceTruthSetWebsite'],
+  TS_PR: ['targetTruthSetProduct1', 'targetTruthSetProduct2', 'sourceTruthSetProduct1', 'sourceTruthSetProduct2']
+};
+
+function formatDuration(totalSeconds) {
+  if (isNaN(totalSeconds) || totalSeconds === 0) return "00:00:00";
+  const s = Math.round(totalSeconds);
+  const hrs = Math.floor(s / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+function parseDateGMT3(dateStr) {
+  if (!dateStr) return { formatted: "N/A", ts: 0 };
+  const p = dateStr.trim().split(/\s+/);
+  if (p.length < 6) return { formatted: dateStr, ts: 0 };
+  const time = p[3].split(':');
+  let d = new Date(Date.UTC(p[5], parseInt(p[1]) - 1, p[2], time[0], time[1], time[2]));
+  let gmt3 = new Date(d.getTime() + GMT_OFFSET);
+  return { formatted: `${String(gmt3.getUTCDate()).padStart(2,'0')}/${String(gmt3.getUTCMonth()+1).padStart(2,'0')}/${gmt3.getUTCFullYear()}`, ts: gmt3.getTime() };
+}
+
+function getConstraintCount(rowData, columnList, mode) {
+  let total = 0;
+  columnList.forEach(col => {
+    const val = (rowData[col] || "").toString().trim();
+    if (!val) return;
+    if (mode === 'brand') {
+      if (col.toLowerCase().includes('producturls')) {
+        total += val.split(',').filter(p => p.trim() !== '').length;
+      } else { total += 1; }
+    } else if (mode === 'split3') {
+      const parts = val.split(',');
+      total += parts.slice(0, 3).filter(p => p.trim() !== '').length;
+    } else if (mode === 'noSplit') {
+      total += 1;
+    } else {
+      total += val.split(',').filter(p => p.trim() !== '').length;
+    }
+  });
+  return total;
+}
+
+// Retrait de la fonction d'affichage de la liste des fichiers sur changement de l'input
+
+async function processFiles() {
+  const files = $('#fileInput')[0].files;
+  if (!files.length) return;
+  
+  masterData = [];
+  let totals = { lines:0, tm:0, br:0, dup:0, cnc:0, unq:0, ttt:0 };
+  
+  $('#progressWrap').show();
+  $('#progressBar').css('width', '0%');
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    
+    // Extraction et nettoyage de la chaîne du nom de fichier source
+    let fileName = file.name.replace(/\.[^/.]+$/, "");
+    fileName = fileName.replace(/_raw|_result|ManualBrandDeduplication_/g, "");
+    
+    let rows = [];
+    
+    if (file.name.match(/\.xlsx?$/i)) {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data);
+      rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+    } else {
+      const text = await file.text();
+      rows = Papa.parse(text, { header: true, skipEmptyLines: true }).data;
+    }
+
+    rows.forEach(row => {
+      const sub = parseDateGMT3(row.SubmissionTime);
+      const acc = parseDateGMT3(row.AcceptTime);
+      const ans = (row.Answer_IsDupe || row.answerDupe || "").toUpperCase();
+      
+      const entry = {
+        source: fileName, date: sub.formatted, wid: row.AwsWorkerID || "Unknown",
+        tm: getConstraintCount(row, COLUMNS.TRADEMARK, 'noSplit'),
+        br: getConstraintCount(row, COLUMNS.BRAND, 'brand'),
+        tst: getConstraintCount(row, COLUMNS.TS_TM, 'split3'),
+        tsw: getConstraintCount(row, COLUMNS.TS_WS, 'noSplit'),
+        tsp: getConstraintCount(row, COLUMNS.TS_PR, 'noSplit'),
+        dup: ans.includes('DUPLICATE') ? 1 : 0,
+        cnc: ans.includes('COULD_NOT_CONCLUDE') ? 1 : 0,
+        unq: ans.includes('UNIQUE') ? 1 : 0,
+        ttt: (sub.ts > 0 && acc.ts > 0) ? (sub.ts - acc.ts) / 5000 : 0
+      };
+
+      masterData.push(entry);
+      totals.lines++; totals.tm += entry.tm; totals.br += entry.br;
+      totals.dup += entry.dup; totals.cnc += entry.cnc; totals.unq += entry.unq;
+      totals.ttt += entry.ttt;
+    });
+
+    $('#progressBar').css('width', ((i + 1) / files.length * 100) + '%');
+  }
+
+  // Update Stats Cards
+  $('#stat-lines').text(totals.lines);
+  $('#stat-tm').text(totals.tm);
+  $('#stat-br').text(totals.br);
+  $('#stat-dup').text(totals.dup);
+  $('#stat-cnc').text(totals.cnc);
+  $('#stat-unq').text(totals.unq);
+  $('#stat-ttt').text(formatDuration(totals.ttt / totals.lines));
+
+  $('#resultsSection').fadeIn();
+  renderTable('output1');
+}
+
+function renderTable(type) {
+  const groups = {};
+  masterData.forEach(d => {
+    let key = type === 'output1' ? `${d.source}|${d.wid}` : type === 'output2' ? `${d.source}|${d.date}|${d.wid}` : d.source;
+    if (!groups[key]) groups[key] = { source: d.source, date: d.date, wid: d.wid, tm:0, br:0, tst:0, tsw:0, tsp:0, dup:0, cnc:0, unq:0, ttt:0 };
+    const g = groups[key];
+    g.tm+=d.tm; g.br+=d.br; g.tst+=d.tst; g.tsw+=d.tsw; g.tsp+=d.tsp; g.dup+=d.dup; g.cnc+=d.cnc; g.unq+=d.unq; g.ttt+=d.ttt;
+  });
+
+  const finalArray = Object.values(groups);
+  const table = $('#outputTable').empty();
+  let headers = ['sourceName'];
+  if(type === 'output1') headers.push('WID');
+  if(type === 'output2') headers.push('DATE', 'WID');
+  headers = headers.concat(['Trademark', 'BrandRep', 'TruthSetTM', 'TruthSetWS', 'TruthSetProd', 'DUPLE', 'CNC', 'UNQ', 'TTT']);
+
+  table.append(`<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`);
+  finalArray.forEach(g => {
+    let row = [g.source];
+    if(type === 'output1') row.push(g.wid);
+    if(type === 'output2') row.push(g.date, g.wid);
+    row.push(g.tm, g.br, g.tst, g.tsw, g.tsp, g.dup, g.cnc, g.unq, formatDuration(g.ttt));
+    table.append(`<tr>${row.map(c => `<td>${c}</td>`).join('')}</tr>`);
+  });
+  window.currentData = { headers, data: finalArray, type };
+}
+
+function copyToClipboard() {
+  const { headers, data, type } = window.currentData;
+  let tsv = headers.join('\t') + '\n';
+  data.forEach(g => {
+    let row = [g.source];
+    if(type === 'output1') row.push(g.wid);
+    if(type === 'output2') row.push(g.date, g.wid);
+    row.push(g.tm, g.br, g.tst, g.tsw, g.tsp, g.dup, g.cnc, g.unq, formatDuration(g.ttt));
+    tsv += row.join('\t') + '\n';
+  });
+  const el = document.createElement('textarea'); el.value = tsv; document.body.appendChild(el); el.select();
+  document.execCommand('copy'); document.body.removeChild(el);
+  alert("Tableau copié !");
+}
+</script>
+</body>
+</html>
