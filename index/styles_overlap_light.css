@@ -1,0 +1,88 @@
+@import "styles3source_light.css";
+
+/* ===== Light theme QA INPUTS - OVERLAP SPECIFIC STYLING ===== */
+select.line,
+select.qa-input-dupe,
+select.qa-input-reason,
+input.qa-input-dupe,
+input.qa-input-reason {
+    height: auto !important;
+    min-height: 32px !important;
+    display: block !important;
+    white-space: normal !important;
+    width: 100% !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #1a1a1a !important;
+    font-family: monospace !important;
+    font-size: 11px !important;
+    cursor: pointer !important;
+    border: 1px solid rgba(0, 102, 204, 0.4) !important;
+    border-radius: 4px !important;
+    padding: 6px 8px !important;
+    margin-top: 4px !important;
+    transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+
+select.qa-input-dupe:focus,
+select.qa-input-reason:focus,
+input.qa-input-dupe:focus,
+input.qa-input-reason:focus {
+    outline: none !important;
+    border-color: #0066cc !important;
+    box-shadow: 0 0 8px rgba(0, 102, 204, 0.3) !important;
+}
+
+select.qa-input-dupe option,
+select.qa-input-reason option {
+    background: #ffffff !important;
+    color: #1a1a1a !important;
+    font-family: monospace !important;
+    font-size: 11px !important;
+}
+
+.qa-block .line.qa-input-dupe,
+.qa-block .line.qa-input-reason {
+    height: auto !important;
+    min-height: 32px !important;
+    display: block !important;
+    flex: none !important;
+    align-items: auto !important;
+}
+
+#viewer > div.bottom-row > div > div:nth-child(7) > select > option,
+#viewer > div.bottom-row > div > div:nth-child(7) > select {
+    user-select: all; !important
+    cursor: pointer; !important
+    font-size: 11px; !important
+    background: #ffffff; !important
+    user-select: all; !important
+    font-family: monospace; !important
+    font-size: 11px; !important
+    cursor: pointer; !important
+    color: #1a1a1a; !important
+}
+
+#viewer > div.bottom-row > div > div > select {
+    user-select: all; !important
+    cursor: pointer; !important
+    font-size: 11px; !important
+    background: #ffffff; !important
+    user-select: all; !important
+    font-family: monospace; !important
+    font-size: 11px; !important
+    cursor: pointer; !important
+    color: #1a1a1a; !important
+    width: 250px; !important
+}
+
+.highlight-not-loading {
+    border: 2px solid #0066cc !important;
+    box-shadow: 0 0 15px 10px rgba(0, 102, 204, 0.2) !important;
+    color: #1a1a1a !important;
+}
+
+.highlight-mixed-up {
+    border: 2px solid #d32f2f !important;
+    box-shadow: 0 0 15px 10px rgba(211, 47, 47, 0.2) !important;
+    color: #1a1a1a !important;
+}
