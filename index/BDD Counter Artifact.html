@@ -23,7 +23,7 @@
     }
 
     /* Stats Grid */
-    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 15px; margin-bottom: 20px; }
     .stat-card { 
       background: rgba(30, 41, 59, 0.8); 
       border: 1px solid #00d2ff; 
@@ -58,11 +58,11 @@
 <div class="container">
   <h1 class="glow-text" style="color:#00d2ff; text-align:center; margin-bottom:30px; letter-spacing: 2px;">📊 BDD Counter Artifact PRO</h1>
 
-  <!-- Stats Container -->
   <div class="stats" id="statsContainer">
     <div class="stat-card"><div class="value" id="stat-lines">0</div><div class="label">Total Lignes</div></div>
     <div class="stat-card"><div class="value" id="stat-tm">0</div><div class="label">Total Trademark</div></div>
     <div class="stat-card"><div class="value" id="stat-br">0</div><div class="label">Total BrandRep</div></div>
+    <div class="stat-card"><div class="value" id="stat-unq-names">0</div><div class="label">Global CountUniqueBrand</div></div>
     <div class="stat-card"><div class="value" id="stat-dup">0</div><div class="label">Total DUPLICATE</div></div>
     <div class="stat-card"><div class="value" id="stat-cnc">0</div><div class="label">Total CNC</div></div>
     <div class="stat-card"><div class="value" id="stat-unq">0</div><div class="label">Total UNIQUE</div></div>
@@ -188,8 +188,6 @@ function getConstraintCount(rowData, columnList, mode) {
   return total;
 }
 
-// Retrait de la fonction d'affichage de la liste des fichiers sur changement de l'input
-
 async function processFiles() {
   const files = $('#fileInput')[0].files;
   if (!files.length) return;
@@ -197,15 +195,19 @@ async function processFiles() {
   masterData = [];
   let totals = { lines:0, tm:0, br:0, dup:0, cnc:0, unq:0, ttt:0 };
   
+  const globalUniqueNames = new Set();
+  
   $('#progressWrap').show();
   $('#progressBar').css('width', '0%');
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     
-    // Extraction et nettoyage de la chaîne du nom de fichier source
     let fileName = file.name.replace(/\.[^/.]+$/, "");
     fileName = fileName.replace(/_raw|_result|ManualBrandDeduplication_/g, "");
+    
+    // Cible spécifiquement le 's' à la fin d'un UUID (ex: 83b7-f4b5edd3afbas)
+    fileName = fileName.replace(/-([0-9a-fA-F]{12})s$/, "-$1");
     
     let rows = [];
     
@@ -223,6 +225,12 @@ async function processFiles() {
       const acc = parseDateGMT3(row.AcceptTime);
       const ans = (row.Answer_IsDupe || row.answerDupe || "").toUpperCase();
       
+      const sName = (row.sourceName || "").toString().trim();
+      const tName = (row.targetName || "").toString().trim();
+      
+      if (sName !== "") globalUniqueNames.add(sName);
+      if (tName !== "") globalUniqueNames.add(tName);
+
       const entry = {
         source: fileName, date: sub.formatted, wid: row.AwsWorkerID || "Unknown",
         tm: getConstraintCount(row, COLUMNS.TRADEMARK, 'noSplit'),
@@ -233,6 +241,8 @@ async function processFiles() {
         dup: ans.includes('DUPLICATE') ? 1 : 0,
         cnc: ans.includes('COULD_NOT_CONCLUDE') ? 1 : 0,
         unq: ans.includes('UNIQUE') ? 1 : 0,
+        sourceNameVal: sName,
+        targetNameVal: tName,
         ttt: (sub.ts > 0 && acc.ts > 0) ? (sub.ts - acc.ts) / 5000 : 0
       };
 
@@ -249,6 +259,7 @@ async function processFiles() {
   $('#stat-lines').text(totals.lines);
   $('#stat-tm').text(totals.tm);
   $('#stat-br').text(totals.br);
+  $('#stat-unq-names').text(globalUniqueNames.size); 
   $('#stat-dup').text(totals.dup);
   $('#stat-cnc').text(totals.cnc);
   $('#stat-unq').text(totals.unq);
@@ -262,24 +273,49 @@ function renderTable(type) {
   const groups = {};
   masterData.forEach(d => {
     let key = type === 'output1' ? `${d.source}|${d.wid}` : type === 'output2' ? `${d.source}|${d.date}|${d.wid}` : d.source;
-    if (!groups[key]) groups[key] = { source: d.source, date: d.date, wid: d.wid, tm:0, br:0, tst:0, tsw:0, tsp:0, dup:0, cnc:0, unq:0, ttt:0 };
+    
+    if (!groups[key]) {
+      groups[key] = { 
+        source: d.source, date: d.date, wid: d.wid, 
+        tm:0, br:0, tst:0, tsw:0, tsp:0, dup:0, cnc:0, unq:0, ttt:0,
+        nameSet: new Set()
+      };
+    }
+    
     const g = groups[key];
     g.tm+=d.tm; g.br+=d.br; g.tst+=d.tst; g.tsw+=d.tsw; g.tsp+=d.tsp; g.dup+=d.dup; g.cnc+=d.cnc; g.unq+=d.unq; g.ttt+=d.ttt;
+    
+    if (d.sourceNameVal !== "") g.nameSet.add(d.sourceNameVal);
+    if (d.targetNameVal !== "") g.nameSet.add(d.targetNameVal);
   });
 
   const finalArray = Object.values(groups);
   const table = $('#outputTable').empty();
+  
+  // Construction dynamique des en-têtes
   let headers = ['sourceName'];
   if(type === 'output1') headers.push('WID');
   if(type === 'output2') headers.push('DATE', 'WID');
-  headers = headers.concat(['Trademark', 'BrandRep', 'TruthSetTM', 'TruthSetWS', 'TruthSetProd', 'DUPLE', 'CNC', 'UNQ', 'TTT']);
+  
+  // On insère 'CountUniqueBrand' uniquement pour le File View (output3)
+  if(type === 'output3') {
+    headers = headers.concat(['Trademark', 'BrandRep', 'CountUniqueBrand', 'TruthSetTM', 'TruthSetWS', 'TruthSetProd', 'DUPLE', 'CNC', 'UNQ', 'TTT']);
+  } else {
+    headers = headers.concat(['Trademark', 'BrandRep', 'TruthSetTM', 'TruthSetWS', 'TruthSetProd', 'DUPLE', 'CNC', 'UNQ', 'TTT']);
+  }
 
   table.append(`<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`);
   finalArray.forEach(g => {
     let row = [g.source];
     if(type === 'output1') row.push(g.wid);
     if(type === 'output2') row.push(g.date, g.wid);
-    row.push(g.tm, g.br, g.tst, g.tsw, g.tsp, g.dup, g.cnc, g.unq, formatDuration(g.ttt));
+    
+    // Construction de la ligne de données correspondante
+    if(type === 'output3') {
+      row.push(g.tm, g.br, g.nameSet.size, g.tst, g.tsw, g.tsp, g.dup, g.cnc, g.unq, formatDuration(g.ttt));
+    } else {
+      row.push(g.tm, g.br, g.tst, g.tsw, g.tsp, g.dup, g.cnc, g.unq, formatDuration(g.ttt));
+    }
     table.append(`<tr>${row.map(c => `<td>${c}</td>`).join('')}</tr>`);
   });
   window.currentData = { headers, data: finalArray, type };
@@ -292,7 +328,12 @@ function copyToClipboard() {
     let row = [g.source];
     if(type === 'output1') row.push(g.wid);
     if(type === 'output2') row.push(g.date, g.wid);
-    row.push(g.tm, g.br, g.tst, g.tsw, g.tsp, g.dup, g.cnc, g.unq, formatDuration(g.ttt));
+    
+    if(type === 'output3') {
+      row.push(g.tm, g.br, g.nameSet.size, g.tst, g.tsw, g.tsp, g.dup, g.cnc, g.unq, formatDuration(g.ttt));
+    } else {
+      row.push(g.tm, g.br, g.tst, g.tsw, g.tsp, g.dup, g.cnc, g.unq, formatDuration(g.ttt));
+    }
     tsv += row.join('\t') + '\n';
   });
   const el = document.createElement('textarea'); el.value = tsv; document.body.appendChild(el); el.select();
