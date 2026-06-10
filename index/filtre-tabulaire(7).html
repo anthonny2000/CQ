@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Filtre Tabulaire — Version Épurée</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;600;700&display=swap" rel="stylesheet" />
+
+<style>
+/* ── Reset & Variables ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:           #0a0a16; 
+  --bg1:          rgba(23, 23, 43, 0.85); 
+  --bg2:          #14142b; 
+  --bg3:          #1c1c3a; 
+  --line:         rgba(156, 39, 176, 0.3); 
+  --line2:        #3b3b6d;
+  --text:         #e0e0ff;
+  --text2:        #8fa0dd;
+  --text3:        #555588;
+  --accent:       #7efff5; 
+  --accent2:      #e040fb; 
+  --danger:       #f87171;
+  --warn:         #fbbf24;
+  --info:         #60a5fa;
+  --radius:       6px;
+  --radius-lg:    12px;
+  --font-ui:      'Segoe UI', -apple-system, sans-serif;
+  --font-mono:    'IBM Plex Mono', monospace;
+  --shadow:       0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: #3b3b6d; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #9c27b0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* ── Layout Unique (Pas de sidebar) ── */
+.layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ── Header ── */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 24px;
+  height: 60px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(14, 14, 31, 0.95);
+  backdrop-filter: blur(4px);
+  position: sticky; top: 0; z-index: 50;
+}
+.app-header .logo {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 16px; font-weight: 800; letter-spacing: .5px;
+  color: #fff;
+  text-shadow: 0 0 8px rgba(126, 255, 245, 0.7), 0 0 15px rgba(156, 39, 176, 0.5);
+}
+.app-header .logo .dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+.app-header .subtitle {
+  font-size: 11px; color: var(--text2); font-family: var(--font-mono);
+  letter-spacing: .04em; margin-left: 4px;
+}
+
+/* Progress Bar Globale */
+.progress-bar { height: 4px; background: #0d0d1a; position: relative; width: 100%; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); width: 0%; transition: width 0.1s ease; box-shadow: 0 0 8px var(--accent); }
+
+/* ── Main Workspace ── */
+.main {
+  flex: 1;
+  padding: 24px;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Toolbar Supérieure */
+.main-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(23, 23, 43, 0.4);
+  margin-bottom: 20px;
+}
+.toolbar-status { font-size: 12px; color: var(--text2); font-family: var(--font-mono); }
+.toolbar-status span { color: var(--accent); font-weight: 600; }
+
+.export-controls { display: flex; align-items: center; gap: 10px; }
+.export-select-wrap { display: flex; align-items: center; gap: 6px; }
+.export-select-wrap select { width: 110px; height: 34px; font-weight: 600; border-color: var(--line); color: var(--accent); text-align: center; }
+
+/* ── Grille de configuration centrale ── */
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.panel {
+  background: var(--bg1);
+  border: 1px solid rgba(156, 39, 176, 0.2);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.panel-head {
+  display: flex; align-items: center; gap: 8px;
+  padding-bottom: 14px; margin-bottom: 14px;
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .12em;
+  color: var(--text2);
+  border-bottom: 1px solid rgba(156, 39, 176, 0.15);
+}
+.panel-head .step-badge {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--bg2); border: 1px solid var(--line2);
+  font-size: 9px; font-weight: 700; color: var(--text2);
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Zone Drop / Upload */
+.drop-zone {
+  border: 1.5px dashed var(--line2);
+  border-radius: var(--radius);
+  padding: 24px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+  background: rgba(20, 20, 43, 0.4);
+}
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--accent);
+  background: rgba(126, 255, 245, 0.04);
+}
+.drop-zone .dz-icon { font-size: 24px; color: var(--text2); margin-bottom: 6px; }
+.drop-zone .dz-label { font-size: 12px; color: var(--text); font-weight: 500; }
+.drop-zone .dz-sub { font-size: 10px; color: var(--text3); margin-top: 3px; font-family: var(--font-mono); }
+
+/* File list */
+.file-list { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
+.file-item {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--bg2); border: 1px solid var(--line2); border-radius: var(--radius);
+  padding: 6px 10px; font-size: 11px; color: var(--text);
+}
+.file-item .fext {
+  background: var(--bg3); border: 1px solid #444; border-radius: 4px;
+  padding: 1px 5px; font-size: 9px; font-weight: 600; color: var(--accent); font-family: var(--font-mono);
+}
+.file-item .fname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-item .fsize { font-size: 9px; color: var(--text2); font-family: var(--font-mono); }
+.file-item .frm { cursor: pointer; color: var(--text3); margin-left: 2px; }
+.file-item .frm:hover { color: var(--danger); }
+
+/* Éléments de formulaires */
+label.lbl { display: block; font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 5px; }
+select, input[type="text"], textarea {
+  width: 100%; padding: 0 10px; background: var(--bg2); border: 1px solid var(--line2);
+  border-radius: var(--radius); color: var(--text); font-size: 12px; outline: none; transition: all .2s;
+}
+select { height: 34px; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='%238fa0dd' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; cursor: pointer; }
+input[type="text"] { height: 34px; }
+textarea { padding: 10px 12px; font-family: var(--font-mono); font-size: 11px; line-height: 1.6; resize: vertical; min-height: 106px; }
+select:hover, input[type="text"]:hover, textarea:hover { border-color: var(--text2); }
+select:focus, input[type="text"]:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 10px rgba(126, 255, 245, 0.25); }
+
+.field + .field { margin-top: 10px; }
+.val-badge { display: inline-flex; align-items: center; gap: 4px; background: rgba(156, 39, 176, 0.15); border: 1px solid var(--line); border-radius: 99px; padding: 2px 10px; font-size: 10px; font-family: var(--font-mono); margin-top: 6px; }
+.val-badge.empty { background: var(--bg2); border-color: var(--line2); color: var(--text3); }
+
+.toggle-group { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.tgl-btn { height: 30px; border-radius: var(--radius); border: 1px solid var(--line2); background: var(--bg2); color: var(--text2); font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; }
+.tgl-btn.active { background: rgba(156, 39, 176, 0.2); border-color: var(--accent2); color: #fff; font-weight: 600; box-shadow: 0 0 8px rgba(156, 39, 176, 0.3); }
+
+/* Gestion des Colonnes */
+.col-search-wrap { position: relative; margin-bottom: 8px; }
+.col-search-wrap .ico { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--text3); pointer-events: none; }
+.col-search-wrap input { padding-left: 28px; }
+#colPickerSection { border: 1px solid var(--line2); padding: 12px; background: #0f0f26; border-radius: 8px; }
+.col-tags { display: flex; flex-wrap: wrap; gap: 5px; max-height: 110px; overflow-y: auto; }
+.ctag { display: inline-flex; align-items: center; gap: 4px; background: var(--bg3); border: 1px solid var(--line2); border-radius: 4px; padding: 4px 8px; font-size: 11px; color: var(--text2); font-family: var(--font-mono); cursor: pointer; }
+.ctag.on { background: rgba(156, 39, 176, 0.2); border-color: var(--accent2); color: #fff; }
+.tag-actions { display: flex; gap: 10px; margin-bottom: 8px; }
+.tag-act-btn { font-size: 10px; color: var(--text3); background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: 3px; }
+.tag-act-btn:hover { color: var(--accent); }
+
+/* Boutons generiques */
+.btn { height: 34px; padding: 0 16px; border-radius: var(--radius); border: 1px solid var(--line2); background: var(--bg2); color: var(--text2); font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all .2s; font-weight: 500; }
+.btn:hover { border-color: var(--accent); color: #fff; background: var(--bg3); }
+.btn.primary { border-color: var(--accent); color: var(--accent); background: rgba(126, 255, 245, 0.05); font-weight: 600; }
+.btn.primary:hover { background: rgba(126, 255, 245, 0.12); color: #fff; }
+
+.btn-run { width: 100%; height: 42px; border-radius: var(--radius-lg); border: none; background: linear-gradient(135deg,#9d50bb,#4776e6); color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all .3s; margin-top: 15px; }
+.btn-run:hover { transform: translateY(-1px); box-shadow: 0 0 15px rgba(156, 39, 176, 0.4); }
+.btn-run:disabled { opacity: .4; cursor: default; transform: none; box-shadow: none; }
+
+/* Toast */
+.toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+.toast { background: var(--bg2); border: 1px solid var(--line2); border-radius: var(--radius); padding: 12px 18px; font-size: 12px; color: var(--text); display: flex; align-items: center; gap: 8px; box-shadow: var(--shadow); animation: toastIn .2s ease; }
+.toast.success { border-color: var(--accent); } .toast.success i { color: var(--accent); }
+.toast.error { border-color: var(--danger); } .toast.error i { color: var(--danger); }
+@keyframes toastIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: translateY(0); } }
+
+.mt10 { margin-top: 10px; } .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <header class="app-header">
+    <div class="logo"><div class="dot"></div>Filtre Tabulaire Pro</div>
+    <span class="subtitle">Moteur Ultra-Fast RAM Exclusif</span>
+  </header>
+
+  <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+
+  <main class="main">
+    
+    <div class="main-toolbar">
+      <div class="toolbar-status" id="toolbarStatus">En attente de configuration. Données isolées en mémoire volatile.</div>
+      
+      <div class="export-controls">
+        <div class="export-select-wrap">
+          <select id="outputFormat">
+            <option value="xlsx">Excel (.xlsx)</option>
+            <option value="csv">CSV (.csv)</option>
+            <option value="tsv" selected>TSV (.tsv)</option>
+          </select>
+        </div>
+        <button class="btn" id="copyBtn"><i class="fa-regular fa-copy"></i> Copier</button>
+        <button class="btn primary" id="downloadBtn"><i class="fa-solid fa-file-export"></i> Télécharger</button>
+      </div>
+    </div>
+
+    <div class="config-grid">
+      
+      <div class="panel">
+        <div class="panel-head"><div class="step-badge">1</div>Fichiers sources</div>
+        <div class="drop-zone" id="dropZone">
+          <div class="dz-icon"><i class="fa-solid fa-file-arrow-up"></i></div>
+          <div class="dz-label">Glissez des fichiers ou cliquez ici</div>
+          <div class="dz-sub">xlsx · csv · tsv — volume illimité</div>
+        </div>
+        <input type="file" id="fileInput" accept=".xlsx,.csv,.tsv" multiple style="display:none !important;" />
+        <div class="file-list" id="fileList"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><div class="step-badge">2</div>Valeurs de filtrage</div>
+        <div class="field">
+          <textarea id="filterValues" placeholder="Collez vos critères ici (un par ligne)&#10;ex: ID-9082&#10;    REF_XYZ"></textarea>
+          <div class="val-badge empty" id="valBadge"><i class="fa-solid fa-hashtag"></i> <span id="valCount">0</span> critère(s)</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><div class="step-badge">3</div>Configuration</div>
+        <div class="field">
+          <label class="lbl">Colonne cible</label>
+          <select id="refCol"><option value="">— chargez un fichier —</option></select>
+        </div>
+        <div class="field mt10">
+          <label class="lbl">Action</label>
+          <select id="filterMode">
+            <option value="keep">✦ Conserver les correspondances</option>
+            <option value="exclude">✕ Exclure les correspondances</option>
+          </select>
+        </div>
+        <div class="field mt10">
+          <label class="lbl">Sensibilité à la casse</label>
+          <select id="caseMode">
+            <option value="insensitive">Ignorer la casse (abc = ABC)</option>
+            <option value="sensitive">Respecter la casse (abc ≠ ABC)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><div class="step-badge">4</div>Colonnes à extraire</div>
+        <div class="toggle-group" id="colModeGroup">
+          <button class="tgl-btn active" data-mode="all"><i class="fa-solid fa-table-columns"></i> Toutes</button>
+          <button class="tgl-btn" data-mode="pick"><i class="fa-solid fa-list-check"></i> Choisir</button>
+        </div>
+        <div id="colPickerSection" class="hidden mt10">
+          <div class="col-search-wrap">
+            <span class="ico"><i class="fa-solid fa-magnifying-glass"></i></span>
+            <input type="text" id="colSearch" placeholder="Rechercher une colonne…" />
+          </div>
+          <div class="tag-actions">
+            <button class="tag-act-btn" id="btnSelectAll"><i class="fa-solid fa-check-double"></i> Tout</button>
+            <button class="tag-act-btn" id="btnClearAll"><i class="fa-solid fa-xmark"></i> Aucun</button>
+          </div>
+          <div class="col-tags" id="colTags"></div>
+        </div>
+
+        <button class="btn-run" id="runBtn"><i class="fa-solid fa-bolt"></i> Exécuter le filtrage</button>
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+$(function () {
+  const state = {
+    files: [],
+    allHeaders: [],
+    selectedCols: new Set(),
+    colMode: 'all',
+    outputData: [] // RAM stockage pur
+  };
+
+  function toast(msg, type = 'success') {
+    const icon = type === 'success' ? 'fa-circle-check' : 'fa-circle-xmark';
+    const $t = $(`<div class="toast ${type}"><i class="fa-solid ${icon}"></i>${msg}</div>`);
+    $('#toastContainer').append($t);
+    setTimeout(() => $t.fadeOut(200, () => $t.remove()), 2600);
+  }
+
+  function progress(pct) {
+    $('#progressFill').css('width', pct + '%');
+  }
+
+  /* ── CORRECTION DU BUG INPUT FILE & DROP ZONE ── */
+  // Déclenchement propre au clic sur le faux conteneur de drop
+  $('#dropZone').on('click', function(e) {
+    e.preventDefault();
+    $('#fileInput').click(); // Appel strict du selecteur natif
+  });
+
+  // Capture des fichiers depuis le sélecteur natif
+  $('#fileInput').on('change', function (e) {
+    if (this.files && this.files.length > 0) {
+      addFiles([...this.files]);
+    }
+    // Reset du champ pour permettre de re-sélectionner le même fichier si besoin
+    $(this).val('');
+  });
+
+  // Événements Drag & Drop sans conflit de propagation
+  $('#dropZone').on('dragover', function(e) { 
+    e.preventDefault(); 
+    e.stopPropagation(); 
+    $(this).addClass('drag-over'); 
+  });
+  
+  $('#dropZone').on('dragleave', function(e) { 
+    e.preventDefault(); 
+    e.stopPropagation(); 
+    $(this).removeClass('drag-over'); 
+  });
+  
+  $('#dropZone').on('drop', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    $(this).removeClass('drag-over');
+    if (e.originalEvent.dataTransfer && e.originalEvent.dataTransfer.files) {
+      addFiles([...e.originalEvent.dataTransfer.files]);
+    }
+  });
+
+  function fmt(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  function addFiles(newFiles) {
+    newFiles.forEach(f => {
+      const ext = f.name.split('.').pop().toLowerCase();
+      if (!['xlsx', 'csv', 'tsv'].includes(ext)) { toast('Format non supporté : ' + f.name, 'error'); return; }
+      if (state.files.find(x => x.name === f.name)) return;
+      state.files.push(f);
+    });
+    renderFileList();
+    if (state.files.length) loadAllHeaders();
+  }
+
+  function renderFileList() {
+    const $list = $('#fileList').empty();
+    state.files.forEach((f, i) => {
+      const ext = f.name.split('.').pop().toUpperCase();
+      $list.append(`
+        <div class="file-item">
+          <span class="fext">${ext}</span>
+          <span class="fname" title="${f.name}">${f.name}</span>
+          <span class="fsize">${fmt(f.size)}</span>
+          <span class="frm" data-i="${i}"><i class="fa-solid fa-xmark"></i></span>
+        </div>
+      `);
+    });
+    $list.on('click', '.frm', function (e) {
+      e.stopPropagation();
+      state.files.splice(parseInt($(this).data('i')), 1);
+      renderFileList();
+      if (state.files.length) loadAllHeaders(); else clearHeaders();
+    });
+  }
+
+  function readFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    return new Promise(resolve => {
+      if (ext === 'xlsx') {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const wb = XLSX.read(e.target.result, { type: 'binary' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          resolve(XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }));
+        };
+        reader.readAsBinaryString(file);
+      } else {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const sep = ext === 'tsv' ? '\t' : undefined;
+          const result = Papa.parse(e.target.result, { delimiter: sep, skipEmptyLines: true });
+          resolve(result.data);
+        };
+        reader.readAsText(file);
+      }
+    });
+  }
+
+  async function loadAllHeaders() {
+    progress(20);
+    const seen = new Set();
+    for (const f of state.files) {
+      const rows = await readFile(f);
+      if (rows.length) rows[0].forEach(h => seen.add(String(h).trim()));
+    }
+    state.allHeaders = [...seen];
+    state.selectedCols = new Set(state.allHeaders);
+
+    const $rc = $('#refCol').empty();
+    state.allHeaders.forEach(h => $rc.append(`<option value="${h}">${h}</option>`));
+    renderColTags();
+    progress(100);
+    setTimeout(() => progress(0), 400);
+  }
+
+  function clearHeaders() {
+    state.allHeaders = [];
+    state.selectedCols = new Set();
+    $('#refCol').html('<option value="">— chargez un fichier —</option>');
+    $('#colTags').empty();
+  }
+
+  function renderColTags(filter = '') {
+    const $grid = $('#colTags').empty();
+    const q = filter.toLowerCase();
+    state.allHeaders.filter(h => !q || h.toLowerCase().includes(q)).forEach(h => {
+      const on = state.selectedCols.has(h);
+      const $tag = $(`<div class="ctag${on ? ' on' : ''}"><i class="fa-solid fa-${on ? 'check' : 'plus'}"></i>${h}</div>`);
+      $tag.on('click', () => {
+        if (state.selectedCols.has(h)) { state.selectedCols.delete(h); $tag.removeClass('on'); }
+        else { state.selectedCols.add(h); $tag.addClass('on'); }
+      });
+      $grid.append($tag);
+    });
+  }
+
+  $('#colSearch').on('input', function () { renderColTags($(this).val()); });
+  $('#btnSelectAll').on('click', () => { state.allHeaders.forEach(h => state.selectedCols.add(h)); renderColTags(); });
+  $('#btnClearAll').on('click', () => { state.selectedCols.clear(); renderColTags(); });
+
+  $('#colModeGroup').on('click', '.tgl-btn', function () {
+    $('#colModeGroup .tgl-btn').removeClass('active');
+    $(this).addClass('active');
+    state.colMode = $(this).data('mode');
+    if (state.colMode === 'pick') $('#colPickerSection').removeClass('hidden');
+    else $('#colPickerSection').addClass('hidden');
+  });
+
+  function getFilterVals() {
+    return $('#filterValues').val().split(/\r?\n/).map(v => v.trim()).filter(v => v.length > 0);
+  }
+
+  $('#filterValues').on('input', () => {
+    const vals = getFilterVals();
+    $('#valCount').text(vals.length);
+    if (vals.length > 0) $('#valBadge').removeClass('empty'); else $('#valBadge').addClass('empty');
+  });
+
+  /* ── EXECUTION DU FILTRE RAM ── */
+  $('#runBtn').on('click', async function() {
+    if (!state.files.length || !getFilterVals().length || !$('#refCol').val()) {
+      toast('Veuillez renseigner les fichiers, critères et colonne cible', 'error'); return;
+    }
+
+    const vals = getFilterVals();
+    const ref = $('#refCol').val();
+    const filterMode = $('#filterMode').val();
+    const caseSensitive = $('#caseMode').val() === 'sensitive';
+    const valSet = new Set(vals.map(v => caseSensitive ? String(v) : String(v).toLowerCase()));
+
+    let keepCols = state.colMode === 'all' ? [...state.allHeaders] : [...state.allHeaders].filter(h => state.selectedCols.has(h));
+
+    $('#runBtn').prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Traitement…');
+    progress(10);
+
+    const result = [keepCols];
+    let totalRead = 0;
+
+    for (let fi = 0; fi < state.files.length; fi++) {
+      const rows = await readFile(state.files[fi]);
+      if (rows.length < 2) continue;
+      
+      const fileHeaders = rows[0].map(h => String(h).trim());
+      const refIdx = fileHeaders.indexOf(ref);
+
+      if (refIdx === -1) continue;
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row.length || row.every(c => c === '')) continue;
+        totalRead++;
+
+        const cellVal = caseSensitive ? String(row[refIdx] ?? '') : String(row[refIdx] ?? '').toLowerCase();
+        const matches = valSet.has(cellVal);
+        
+        if ((filterMode === 'keep' && matches) || (filterMode === 'exclude' && !matches)) {
+          result.push(keepCols.map(h => {
+            const idx = fileHeaders.indexOf(h);
+            return idx >= 0 ? String(row[idx] ?? '') : '';
+          }));
+        }
+      }
+      progress(10 + Math.floor((fi / state.files.length) * 85));
+    }
+
+    state.outputData = result;
+    const rowsOut = result.length - 1;
+
+    progress(100);
+    $('#toolbarStatus').html(`Filtrage terminé. <span>${rowsOut.toLocaleString()}</span> lignes isolées sur <span>${totalRead.toLocaleString()}</span> lues.`);
+    $('#runBtn').prop('disabled', false).html('<i class="fa-solid fa-bolt"></i> Exécuter le filtrage');
+    
+    toast(`${rowsOut.toLocaleString()} ligne(s) extraite(s)`);
+    setTimeout(() => progress(0), 600);
+  });
+
+  /* ── DOWNLOAD MULTI-FORMAT EXPORT ── */
+  $('#downloadBtn').on('click', () => {
+    if (!state.outputData.length) { toast('Aucune donnée à exporter', 'error'); return; }
+    const format = $('#outputFormat').val();
+    progress(20);
+
+    if (format === 'xlsx') {
+      const ws = XLSX.utils.aoa_to_sheet(state.outputData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Données Filtrées");
+      XLSX.writeFile(wb, "export_master_data.xlsx");
+    } else {
+      const sep = format === 'csv' ? ',' : '\t';
+      const fileContent = state.outputData.map(row => 
+        row.map(cell => {
+          const s = String(cell);
+          return s.includes(sep) || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+        }).join(sep)
+      ).join('\n');
+      
+      const blob = new Blob(["\ufeff" + fileContent], { type: 'text/plain;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `export_master_data.${format}`; a.click();
+      URL.revokeObjectURL(url);
+    }
+    progress(100);
+    toast(`Export .${format.toUpperCase()} téléchargé`);
+    setTimeout(() => progress(0), 400);
+  });
+
+  /* ── COPIE PRESSE PAPIER ── */
+  $('#copyBtn').on('click', () => {
+    if (!state.outputData.length) { toast('Aucune donnée en mémoire', 'error'); return; }
+    const format = $('#outputFormat').val();
+    const sep = format === 'csv' ? ',' : '\t';
+    
+    const textToCopy = state.outputData.map(r => r.join(sep)).join('\n');
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      toast('Données copiées !');
+    });
+  });
+});
+</script>
+</body>
+</html>

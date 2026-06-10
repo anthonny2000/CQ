@@ -1,0 +1,1680 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brand Matcher - Analyse de Doublons</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+            --accent: #ec4899;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --text: #f1f5f9;
+            --text-secondary: #cbd5e1;
+            --border: #475569;
+        }
+
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, var(--bg) 0%, #1a1f3a 100%);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            animation: slideDown 0.6s ease-out;
+        }
+
+        .header h1 {
+            font-size: 3em;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+            letter-spacing: -1px;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 1.1em;
+            font-weight: 400;
+        }
+
+        .main-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .card h2 {
+            font-size: 1.3em;
+            margin-bottom: 20px;
+            color: var(--primary-light);
+            font-weight: 600;
+        }
+
+        .upload-zone {
+            border: 2px dashed var(--primary);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .upload-zone:hover {
+            border-color: var(--accent);
+            background: rgba(236, 72, 153, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .upload-zone.dragover {
+            border-color: var(--accent);
+            background: rgba(236, 72, 153, 0.15);
+        }
+
+        .upload-icon {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .upload-zone p {
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        .upload-zone .format-info {
+            font-size: 0.85em;
+            color: #94a3b8;
+            margin-top: 10px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-list {
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-tertiary);
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .file-item .name {
+            color: var(--primary-light);
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .file-item .size {
+            color: var(--text-secondary);
+            margin: 0 10px;
+            font-size: 0.8em;
+        }
+
+        .remove-btn {
+            background: var(--danger);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 0.8em;
+            transition: all 0.2s;
+        }
+
+        .remove-btn:hover {
+            background: #dc2626;
+            transform: scale(1.05);
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-top: 25px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn.primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            flex: 1;
+        }
+
+        .btn.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn.secondary {
+            background: var(--bg-tertiary);
+            color: var(--primary-light);
+            border: 1px solid var(--primary);
+        }
+
+        .btn.secondary:hover {
+            background: var(--primary);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .progress-section {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .progress-section.active {
+            display: block;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .progress-bar-container {
+            background: var(--bg-tertiary);
+            border-radius: 10px;
+            height: 8px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(236, 72, 153, 0.5);
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9em;
+            color: var(--text-secondary);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        .stat-card {
+            background: var(--bg-tertiary);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            border-left: 4px solid var(--primary);
+        }
+
+        .stat-card.identical {
+            border-left-color: var(--success);
+        }
+
+        .stat-card.similar {
+            border-left-color: var(--primary-light);
+        }
+
+        .stat-card.duplicate {
+            border-left-color: var(--warning);
+        }
+
+        .stat-card.different {
+            border-left-color: var(--danger);
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .results-section {
+            margin-top: 50px;
+            display: none;
+        }
+
+        .results-section.active {
+            display: block;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .results-header h2 {
+            font-size: 1.5em;
+            color: var(--primary-light);
+            font-weight: 600;
+        }
+
+        .copy-btn {
+            background: var(--success);
+            color: white;
+        }
+
+        .copy-btn:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        .copy-btn.copied {
+            background: var(--success);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            padding: 10px 18px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeInUp 0.3s ease-out;
+        }
+
+        .summary-box {
+            background: var(--bg-tertiary);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .results-table thead {
+            background: var(--bg-tertiary);
+            position: sticky;
+            top: 0;
+        }
+
+        .results-table th {
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--primary-light);
+            border-bottom: 2px solid var(--border);
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .results-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9em;
+        }
+
+        .results-table tbody tr {
+            transition: background 0.2s ease;
+        }
+
+        .results-table tbody tr:hover {
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .results-table tbody tr:nth-child(even) {
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .task-id {
+            color: var(--text-secondary);
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .brand-cell {
+            font-weight: 500;
+            color: var(--text);
+            word-break: break-word;
+            max-width: 250px;
+        }
+
+        .similarity-score {
+            font-weight: 700;
+            text-align: center;
+            min-width: 80px;
+        }
+
+        .similarity-score.identical {
+            color: var(--success);
+            background: rgba(16, 185, 129, 0.15);
+            border-radius: 6px;
+            padding: 4px 8px;
+        }
+
+        .similarity-score.similar {
+            color: var(--primary-light);
+            background: rgba(99, 102, 241, 0.15);
+            border-radius: 6px;
+            padding: 4px 8px;
+        }
+
+        .similarity-score.duplicate {
+            color: var(--warning);
+            background: rgba(245, 158, 11, 0.15);
+            border-radius: 6px;
+            padding: 4px 8px;
+        }
+
+        .similarity-score.different {
+            color: var(--danger);
+            background: rgba(239, 68, 68, 0.15);
+            border-radius: 6px;
+            padding: 4px 8px;
+        }
+
+        @media (max-width: 768px) {
+            .main-section {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(99, 102, 241, 0.2);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-tertiary);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Brand Matcher</h1>
+            <p>Analyse intelligente des doublons et similarités de marques</p>
+        </div>
+
+        <div class="main-section">
+            <!-- UPLOAD SECTION -->
+            <div class="card">
+                <h2>📤 Importer vos données</h2>
+                
+                <div class="upload-zone" id="uploadZone">
+                    <span class="upload-icon">📁</span>
+                    <p><strong>Cliquez pour sélectionner</strong> ou glissez vos fichiers</p>
+                    <div class="format-info">
+                        ✓ Formats supportés: CSV, TSV, XLSX<br>
+                        ✓ Multi-fichiers acceptés<br>
+                        <strong style="color: var(--primary-light); margin-top: 8px; display: block;">
+                            Colonnes requises: taskID | sourceName | targetName
+                        </strong>
+                    </div>
+                </div>
+
+                <input type="file" id="fileInput" multiple accept=".csv,.tsv,.xlsx,.xls">
+
+                <div class="file-list" id="fileList"></div>
+
+                <div class="controls">
+                    <button class="btn primary" id="analyzeBtn" disabled>
+                        <span>▶</span> Analyser
+                    </button>
+                    <button class="btn secondary" id="clearBtn">
+                        Réinitialiser
+                    </button>
+                </div>
+            </div>
+
+            <!-- STATS SECTION -->
+            <div class="card">
+                <h2>📊 Résultats</h2>
+                
+                <div class="progress-section" id="progressSection">
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="progressBar"></div>
+                    </div>
+                    <div class="progress-info">
+                        <span id="progressText">Initialisation...</span>
+                        <span id="progressPercent">0%</span>
+                    </div>
+                </div>
+
+                <div class="stats-grid" id="statsGrid" style="display: none;">
+                    <div class="stat-card identical">
+                        <div class="stat-value" id="statIdentical">0</div>
+                        <div class="stat-label">Identiques</div>
+                    </div>
+                    <div class="stat-card similar">
+                        <div class="stat-value" id="statSimilar">0</div>
+                        <div class="stat-label">Similaires</div>
+                    </div>
+                    <div class="stat-card duplicate">
+                        <div class="stat-value" id="statDuplicate">0</div>
+                        <div class="stat-label">Potentiels Doublons</div>
+                    </div>
+                    <div class="stat-card different">
+                        <div class="stat-value" id="statDifferent">0</div>
+                        <div class="stat-label">Différents</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RESULTS SECTION -->
+        <div class="card results-section" id="resultsSection">
+            <div class="results-header">
+                <h2>📈 Détails d'analyse</h2>
+                <button class="btn secondary copy-btn" id="copyBtn">
+                    📋 Copier les résultats
+                </button>
+            </div>
+
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="summary">Résumé</button>
+                <button class="tab-btn" data-tab="identical">Identiques</button>
+                <button class="tab-btn" data-tab="similar">Similaires</button>
+                <button class="tab-btn" data-tab="duplicate">Doublons</button>
+                <button class="tab-btn" data-tab="different">Différents</button>
+            </div>
+
+            <div id="summary" class="tab-content active">
+                <div class="summary-box" id="summaryContent"></div>
+            </div>
+
+            <div id="identical" class="tab-content">
+                <div class="summary-box" id="identicalContent"></div>
+            </div>
+
+            <div id="similar" class="tab-content">
+                <div class="summary-box" id="similarContent"></div>
+            </div>
+
+            <div id="duplicate" class="tab-content">
+                <div class="summary-box" id="duplicateContent"></div>
+            </div>
+
+            <div id="different" class="tab-content">
+                <div class="summary-box" id="differentContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        // ALGORITHME DE MATCHING DE BRANDS
+        // ============================================================
+
+        class BrandMatcher {
+            constructor() {
+                this.results = {
+                    identical: [],
+                    similar: [],
+                    duplicate: [],
+                    different: []
+                };
+                // Carte des idéogrammes similaires (kanji homophones/synonymes)
+                this.kanjiSimilarities = this.buildKanjiSimilarities();
+            }
+
+            // Construire une base de données des kanji similaires/homophones
+            buildKanjiSimilarities() {
+                return {
+                    // Homophones et variantes communes
+                    '生': ['性', '声', '清'],
+                    '性': ['生', '清'],
+                    '声': ['生'],
+                    '清': ['生', '性'],
+                    '製': ['制', '西'],
+                    '制': ['製'],
+                    '西': ['製'],
+                    '金': ['銀', '鋼'],
+                    '銀': ['金'],
+                    '鋼': ['金'],
+                    '水': ['液', '泉'],
+                    '液': ['水'],
+                    '泉': ['水'],
+                    '火': ['炎', '熱'],
+                    '炎': ['火'],
+                    '熱': ['火'],
+                    '土': ['地', '場'],
+                    '地': ['土', '場'],
+                    '場': ['土', '地'],
+                    '木': ['林', '森', '樹'],
+                    '林': ['木', '森'],
+                    '森': ['木', '林'],
+                    '樹': ['木'],
+                    '大': ['太', '巨'],
+                    '太': ['大'],
+                    '巨': ['大'],
+                    '小': ['少', '微'],
+                    '少': ['小'],
+                    '微': ['小'],
+                    '高': ['上', '昇'],
+                    '上': ['高'],
+                    '昇': ['高'],
+                    '低': ['下', '降'],
+                    '下': ['低'],
+                    '降': ['低'],
+                    '新': ['若', '初'],
+                    '若': ['新'],
+                    '初': ['新'],
+                    '古': ['旧', '昔'],
+                    '旧': ['古'],
+                    '昔': ['古'],
+                };
+            }
+
+            // Détection des caractères CJK (Chinese, Japanese, Korean)
+            isCJK(char) {
+                const code = char.charCodeAt(0);
+                return (code >= 0x4E00 && code <= 0x9FFF) ||  // CJK Unified Ideographs
+                       (code >= 0x3400 && code <= 0x4DBF) ||  // CJK Extension A
+                       (code >= 0x20000 && code <= 0x2A6DF) || // CJK Extension B
+                       (code >= 0x3040 && code <= 0x309F) ||  // Hiragana
+                       (code >= 0x30A0 && code <= 0x30FF);    // Katakana
+            }
+
+            // Détection si la chaîne contient du CJK
+            containsCJK(str) {
+                return [...str].some(char => this.isCJK(char));
+            }
+
+            // Extraire les kanji d'une chaîne
+            extractKanji(str) {
+                return [...str].filter(char => {
+                    const code = char.charCodeAt(0);
+                    return code >= 0x4E00 && code <= 0x9FFF;
+                });
+            }
+
+            // Extraire les hiragana
+            extractHiragana(str) {
+                return [...str].filter(char => {
+                    const code = char.charCodeAt(0);
+                    return code >= 0x3040 && code <= 0x309F;
+                });
+            }
+
+            // Extraire les katakana
+            extractKatakana(str) {
+                return [...str].filter(char => {
+                    const code = char.charCodeAt(0);
+                    return code >= 0x30A0 && code <= 0x30FF;
+                });
+            }
+
+            // Conversion Katakana vers Hiragana
+            katakanaToHiragana(str) {
+                let result = '';
+                for (let char of str) {
+                    const code = char.charCodeAt(0);
+                    if (code >= 0x30A0 && code <= 0x30FF) {
+                        result += String.fromCharCode(code - 0x60);
+                    } else {
+                        result += char;
+                    }
+                }
+                return result;
+            }
+
+            // Similarité entre deux kanji
+            kanjiSimilarity(kanji1, kanji2) {
+                if (kanji1 === kanji2) return 1.0;
+                
+                const similar1 = this.kanjiSimilarities[kanji1] || [];
+                const similar2 = this.kanjiSimilarities[kanji2] || [];
+                
+                if (similar1.includes(kanji2) || similar2.includes(kanji1)) {
+                    return 0.7; // Kanji similaires
+                }
+                return 0;
+            }
+
+            // Comparaison de listes de kanji
+            kanjiListSimilarity(list1, list2) {
+                if (list1.length === 0 && list2.length === 0) return 1.0;
+                if (list1.length === 0 || list2.length === 0) return 0;
+
+                let matches = 0;
+                const maxLen = Math.max(list1.length, list2.length);
+
+                for (let i = 0; i < Math.min(list1.length, list2.length); i++) {
+                    matches += this.kanjiSimilarity(list1[i], list2[i]);
+                }
+
+                return matches / maxLen;
+            }
+
+            // Comparaison spécialisée pour texte avec CJK
+            compareCJKText(str1, str2) {
+                // Conversion katakana -> hiragana
+                str1 = this.katakanaToHiragana(str1);
+                str2 = this.katakanaToHiragana(str2);
+
+                // Vérification identité exacte
+                if (str1 === str2) return 1.0;
+
+                // Extraction des composants
+                const kanji1 = this.extractKanji(str1);
+                const kanji2 = this.extractKanji(str2);
+                const hiragana1 = this.extractHiragana(str1);
+                const hiragana2 = this.extractHiragana(str2);
+
+                // Calcul des scores
+                let totalScore = 0;
+                let components = 0;
+
+                // Score kanji
+                if (kanji1.length > 0 || kanji2.length > 0) {
+                    const kanjiScore = this.kanjiListSimilarity(kanji1, kanji2);
+                    totalScore += kanjiScore * 0.6;
+                    components += 0.6;
+                }
+
+                // Score hiragana
+                if (hiragana1.length > 0 || hiragana2.length > 0) {
+                    const hiraganaScore = this.levenshteinSimilarity(
+                        hiragana1.join(''),
+                        hiragana2.join('')
+                    );
+                    totalScore += hiraganaScore * 0.4;
+                    components += 0.4;
+                }
+
+                // Si pas de composants CJK trouvés, utiliser Levenshtein brut
+                if (components === 0) {
+                    return this.levenshteinSimilarity(str1, str2);
+                }
+
+                return components > 0 ? totalScore / components : 0;
+            }
+
+            // Normalisation basique
+            normalize(str) {
+                return str
+                    .trim()
+                    .replace(/\s+/g, ' ');
+            }
+
+            // Suppression des accents (pour texte latin)
+            removeAccents(str) {
+                return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            }
+
+            // Distance de Levenshtein
+            levenshteinDistance(a, b) {
+                const matrix = [];
+                for (let i = 0; i <= b.length; i++) {
+                    matrix[i] = [i];
+                }
+                for (let j = 0; j <= a.length; j++) {
+                    matrix[0][j] = j;
+                }
+                for (let i = 1; i <= b.length; i++) {
+                    for (let j = 1; j <= a.length; j++) {
+                        if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                            matrix[i][j] = matrix[i - 1][j - 1];
+                        } else {
+                            matrix[i][j] = Math.min(
+                                matrix[i - 1][j - 1] + 1,
+                                matrix[i][j - 1] + 1,
+                                matrix[i - 1][j] + 1
+                            );
+                        }
+                    }
+                }
+                return matrix[b.length][a.length];
+            }
+
+            // Similarité basée sur Levenshtein
+            levenshteinSimilarity(a, b) {
+                const maxLen = Math.max(a.length, b.length);
+                if (maxLen === 0) return 1;
+                return 1 - (this.levenshteinDistance(a, b) / maxLen);
+            }
+
+            // N-grams similarity
+            ngramSimilarity(a, b, n = 2) {
+                const getNgrams = (str) => {
+                    const ngrams = new Set();
+                    for (let i = 0; i <= str.length - n; i++) {
+                        ngrams.add(str.substring(i, i + n));
+                    }
+                    return ngrams;
+                };
+
+                const ngA = getNgrams(a);
+                const ngB = getNgrams(b);
+                
+                if (ngA.size === 0 || ngB.size === 0) return 0;
+
+                const intersection = [...ngA].filter(x => ngB.has(x)).length;
+                const union = new Set([...ngA, ...ngB]).size;
+                
+                return intersection / union;
+            }
+
+            // Soundex pour similarité phonétique (latin)
+            soundex(str) {
+                str = str.toUpperCase();
+                const firstLetter = str[0];
+                const codes = {
+                    'B': '1', 'F': '1', 'P': '1', 'V': '1',
+                    'C': '2', 'G': '2', 'J': '2', 'K': '2', 'Q': '2', 'S': '2', 'X': '2', 'Z': '2',
+                    'D': '3', 'T': '3',
+                    'L': '4',
+                    'M': '5', 'N': '5',
+                    'R': '6'
+                };
+
+                let soundex = firstLetter;
+                let prevCode = codes[firstLetter] || '0';
+
+                for (let i = 1; i < str.length && soundex.length < 4; i++) {
+                    const code = codes[str[i]] || '0';
+                    if (code !== '0' && code !== prevCode) {
+                        soundex += code;
+                    }
+                    if (code !== '0') prevCode = code;
+                }
+
+                return (soundex + '000').substring(0, 4);
+            }
+
+            // Extraire les mots d'une chaîne
+            extractWords(str) {
+                return str.toLowerCase()
+                    .split(/[\s\-_,\.]+/)
+                    .filter(w => w.length > 0);
+            }
+
+            // Trouver le meilleur appairage entre deux listes de mots
+            optimalWordMatching(words1, words2) {
+                if (words1.length === 0 && words2.length === 0) return { score: 1.0, matches: [] };
+                if (words1.length === 0 || words2.length === 0) return { score: 0, matches: [] };
+
+                const matches = [];
+                const used = new Set();
+
+                // 1. D'abord, chercher les correspondances exactes
+                for (let i = 0; i < words1.length; i++) {
+                    for (let j = 0; j < words2.length; j++) {
+                        if (!used.has(j) && words1[i] === words2[j]) {
+                            matches.push({ word1: i, word2: j, similarity: 1.0 });
+                            used.add(j);
+                            break;
+                        }
+                    }
+                }
+
+                // 2. Ensuite, chercher les correspondances partielles
+                for (let i = 0; i < words1.length; i++) {
+                    let bestMatch = null;
+                    let bestScore = 0.7; // Seuil minimum pour correspondance partielle
+
+                    for (let j = 0; j < words2.length; j++) {
+                        if (!used.has(j)) {
+                            const sim = this.levenshteinSimilarity(words1[i], words2[j]);
+                            if (sim > bestScore) {
+                                bestScore = sim;
+                                bestMatch = j;
+                            }
+                        }
+                    }
+
+                    if (bestMatch !== null) {
+                        matches.push({ word1: i, word2: bestMatch, similarity: bestScore });
+                        used.add(bestMatch);
+                    }
+                }
+
+                // Calculer le score global
+                const totalSimilarity = matches.reduce((sum, m) => sum + m.similarity, 0);
+                const avgSimilarity = matches.length > 0 ? totalSimilarity / Math.max(words1.length, words2.length) : 0;
+
+                return { score: avgSimilarity, matches: matches };
+            }
+
+            // Analyser si les mots sont dans un ordre différent
+            wordOrderSimilarity(words1, words2) {
+                if (words1.length === 0 || words2.length === 0) return 0;
+
+                const matching = this.optimalWordMatching(words1, words2);
+                return matching.score;
+            }
+
+            // Comparer les "tokens" importants (heuristique: mots > 3 caractères)
+            importantWordSimilarity(str1, str2) {
+                const words1 = this.extractWords(str1);
+                const words2 = this.extractWords(str2);
+                
+                const important1 = words1.filter(w => w.length > 2);
+                const important2 = words2.filter(w => w.length > 2);
+
+                if (important1.length === 0 && important2.length === 0) return 1.0;
+                if (important1.length === 0 || important2.length === 0) return 0;
+
+                const matching = this.optimalWordMatching(important1, important2);
+                return matching.score;
+            }
+
+            // Analyser les mots "stop" (petits mots: et, ou, le, la, de, etc)
+            stopWords = new Set([
+                'et', 'ou', 'le', 'la', 'les', 'un', 'une', 'des', 'de', 'du', 'a', 'en', 'par',
+                'and', 'or', 'the', 'a', 'an', 'in', 'on', 'at', 'by', 'for', 'with',
+                'und', 'der', 'die', 'das', 'ein', 'eine', 'von', 'zu', 'im'
+            ]);
+
+            // Extraire les mots importants (non-stop words)
+            extractImportantWords(str) {
+                const words = this.extractWords(str);
+                return words.filter(w => !this.stopWords.has(w));
+            }
+
+            // Comparaison spécialisée pour texte avec CJK
+            compareCJKText(str1, str2) {
+                // Conversion katakana -> hiragana
+                str1 = this.katakanaToHiragana(str1);
+                str2 = this.katakanaToHiragana(str2);
+
+                // Vérification identité exacte
+                if (str1 === str2) return 1.0;
+
+                // Extraction des composants
+                const kanji1 = this.extractKanji(str1);
+                const kanji2 = this.extractKanji(str2);
+                const hiragana1 = this.extractHiragana(str1);
+                const hiragana2 = this.extractHiragana(str2);
+
+                // Calcul des scores
+                let totalScore = 0;
+                let components = 0;
+
+                // Score kanji
+                if (kanji1.length > 0 || kanji2.length > 0) {
+                    const kanjiScore = this.kanjiListSimilarity(kanji1, kanji2);
+                    totalScore += kanjiScore * 0.6;
+                    components += 0.6;
+                }
+
+                // Score hiragana
+                if (hiragana1.length > 0 || hiragana2.length > 0) {
+                    const hiraganaScore = this.levenshteinSimilarity(
+                        hiragana1.join(''),
+                        hiragana2.join('')
+                    );
+                    totalScore += hiraganaScore * 0.4;
+                    components += 0.4;
+                }
+
+                // Si pas de composants CJK trouvés, utiliser Levenshtein brut
+                if (components === 0) {
+                    return this.levenshteinSimilarity(str1, str2);
+                }
+
+                return components > 0 ? totalScore / components : 0;
+            }
+
+            // Ratio combiné de similarité - VERSION AVANCÉE
+            calculateSimilarity(brand1, brand2) {
+                const norm1 = this.normalize(brand1);
+                const norm2 = this.normalize(brand2);
+
+                // Vérification identique exacte
+                if (norm1 === norm2) {
+                    return { score: 1.0, type: 'identical' };
+                }
+
+                // Détection si texte contient du CJK
+                const hasCJK1 = this.containsCJK(norm1);
+                const hasCJK2 = this.containsCJK(norm2);
+
+                let score;
+
+                if (hasCJK1 || hasCJK2) {
+                    // Comparaison spécialisée CJK
+                    score = this.compareCJKText(norm1, norm2);
+                } else {
+                    // Comparaison texte latin avancée
+                    const noAccent1 = this.removeAccents(norm1);
+                    const noAccent2 = this.removeAccents(norm2);
+
+                    // Extraire les mots
+                    const words1 = this.extractWords(noAccent1);
+                    const words2 = this.extractWords(noAccent2);
+
+                    // 1. Score global Levenshtein (caractères)
+                    const levenScore = this.levenshteinSimilarity(noAccent1, noAccent2);
+
+                    // 2. Score d'appairage optimal des mots
+                    const wordMatchScore = this.wordOrderSimilarity(words1, words2);
+
+                    // 3. Score des mots importants seulement
+                    const importantScore = this.importantWordSimilarity(noAccent1, noAccent2);
+
+                    // 4. N-grams
+                    const ngramScore = this.ngramSimilarity(noAccent1, noAccent2, 2);
+
+                    // 5. Soundex
+                    const soundexMatch = this.soundex(noAccent1) === this.soundex(noAccent2) ? 0.15 : 0;
+
+                    // Pondération intelligente
+                    // 35% Mots importants (approche sémantique)
+                    // 30% Appairage optimal des mots
+                    // 20% Levenshtein global
+                    // 10% N-grams
+                    // 5% Soundex
+                    score = (importantScore * 0.35) + 
+                            (wordMatchScore * 0.30) + 
+                            (levenScore * 0.20) + 
+                            (ngramScore * 0.10) + 
+                            soundexMatch;
+                }
+
+                return { score: score, type: 'different' };
+            }
+
+            // Catégorisation - SEUILS AJUSTÉS
+            categorize(score) {
+                if (score >= 0.95) return 'identical';    // Quasi identique
+                if (score >= 0.82) return 'similar';      // Similaire avéré
+                if (score >= 0.68) return 'duplicate';    // Doublon probable
+                return 'different';                        // Différent
+            }
+
+            // Traitement des paires
+            analyzeDataset(pairs) {
+                this.results = {
+                    identical: [],
+                    similar: [],
+                    duplicate: [],
+                    different: []
+                };
+
+                pairs.forEach(pair => {
+                    if (!pair.brand1 || !pair.brand2) return;
+
+                    const { score } = this.calculateSimilarity(pair.brand1, pair.brand2);
+                    const category = this.categorize(score);
+
+                    this.results[category].push({
+                        taskID: pair.taskID,
+                        brand1: pair.brand1,
+                        brand2: pair.brand2,
+                        similarity: (score * 100).toFixed(2),
+                        category
+                    });
+                });
+
+                return this.results;
+            }
+        }
+
+        // ============================================================
+        // GESTION DES FICHIERS
+        // ============================================================
+
+        class FileHandler {
+            // Parseur CSV robuste qui gère les guillemets et espaces
+            parseCSVLine(line) {
+                const result = [];
+                let current = '';
+                let inQuotes = false;
+
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+                    const nextChar = line[i + 1];
+
+                    if (char === '"') {
+                        if (inQuotes && nextChar === '"') {
+                            current += '"';
+                            i++;
+                        } else {
+                            inQuotes = !inQuotes;
+                        }
+                    } else if (char === ',' && !inQuotes) {
+                        result.push(current.trim());
+                        current = '';
+                    } else {
+                        current += char;
+                    }
+                }
+                result.push(current.trim());
+                return result;
+            }
+
+            async parseCSV(text) {
+                const lines = text.split('\n').filter(l => l.trim());
+                if (lines.length < 2) return [];
+
+                const headerLine = lines[0];
+                const headers = this.parseCSVLine(headerLine).map(h => h.trim().toLowerCase());
+                
+                // Trouver les indices EXACTS
+                const taskIDIdx = headers.findIndex(h => h === 'taskid');
+                const sourceIdx = headers.findIndex(h => h === 'sourcename');
+                const targetIdx = headers.findIndex(h => h === 'targetname');
+
+                if (taskIDIdx === -1 || sourceIdx === -1 || targetIdx === -1) {
+                    console.error('Colonnes non trouvées. Headers attendus: taskID, sourceName, targetName');
+                    console.error('Headers trouvés:', headers);
+                    return [];
+                }
+
+                const data = [];
+                for (let i = 1; i < lines.length; i++) {
+                    if (!lines[i].trim()) continue;
+                    
+                    const values = this.parseCSVLine(lines[i]);
+                    const taskID = values[taskIDIdx];
+                    const sourceName = values[sourceIdx];
+                    const targetName = values[targetIdx];
+
+                    if (sourceName && targetName && sourceName.trim() && targetName.trim()) {
+                        data.push({
+                            taskID: taskID || 'N/A',
+                            sourceName: sourceName.trim(),
+                            targetName: targetName.trim()
+                        });
+                    }
+                }
+                return data;
+            }
+
+            async parseTSV(text) {
+                const lines = text.split('\n').filter(l => l.trim());
+                if (lines.length < 2) return [];
+
+                const headers = lines[0].split('\t').map(h => h.trim().toLowerCase());
+                
+                // Trouver les indices EXACTS
+                const taskIDIdx = headers.findIndex(h => h === 'taskid');
+                const sourceIdx = headers.findIndex(h => h === 'sourcename');
+                const targetIdx = headers.findIndex(h => h === 'targetname');
+
+                if (taskIDIdx === -1 || sourceIdx === -1 || targetIdx === -1) {
+                    console.error('Colonnes non trouvées. Headers attendus: taskID, sourceName, targetName');
+                    console.error('Headers trouvés:', headers);
+                    return [];
+                }
+
+                const data = [];
+                for (let i = 1; i < lines.length; i++) {
+                    if (!lines[i].trim()) continue;
+
+                    const values = lines[i].split('\t').map(v => v.trim());
+                    const taskID = values[taskIDIdx];
+                    const sourceName = values[sourceIdx];
+                    const targetName = values[targetIdx];
+
+                    if (sourceName && targetName && sourceName.trim() && targetName.trim()) {
+                        data.push({
+                            taskID: taskID || 'N/A',
+                            sourceName: sourceName.trim(),
+                            targetName: targetName.trim()
+                        });
+                    }
+                }
+                return data;
+            }
+
+            parseXLSXSimple(arrayBuffer) {
+                try {
+                    return this.readXLSXBasic(arrayBuffer);
+                } catch (e) {
+                    console.error('Erreur parsing XLSX:', e);
+                    return [];
+                }
+            }
+
+            readXLSXBasic(arrayBuffer) {
+                const view = new Uint8Array(arrayBuffer);
+                const signature = view[0] === 0x50 && view[1] === 0x4B;
+                
+                if (!signature) return [];
+
+                const data = [];
+                
+                try {
+                    let str = '';
+                    for (let i = 0; i < view.length; i++) {
+                        const char = view[i];
+                        if ((char >= 32 && char <= 126) || char === 9 || char === 10 || char === 13) {
+                            str += String.fromCharCode(char);
+                        }
+                    }
+
+                    // Extraction des valeurs <t> (cellules de texte)
+                    const cellRegex = /<t>([^<]*)<\/t>/g;
+                    const cells = [];
+                    let match;
+
+                    while ((match = cellRegex.exec(str)) !== null) {
+                        cells.push(match[1]);
+                    }
+
+                    if (cells.length < 3) return [];
+
+                    // Trouver les indices des colonnes dans les headers
+                    const taskIDIdx = cells.findIndex(c => c.toLowerCase().trim() === 'taskid');
+                    const sourceIdx = cells.findIndex(c => c.toLowerCase().trim() === 'sourcename');
+                    const targetIdx = cells.findIndex(c => c.toLowerCase().trim() === 'targetname');
+
+                    if (taskIDIdx === -1 || sourceIdx === -1 || targetIdx === -1) {
+                        console.error('Colonnes non trouvées dans XLSX');
+                        console.error('Headers trouvés:', cells.slice(0, 10));
+                        return [];
+                    }
+
+                    // Récupérer le nombre de colonnes
+                    const numCols = Math.max(taskIDIdx, sourceIdx, targetIdx) + 1;
+                    
+                    // Reconstruire les lignes
+                    for (let i = numCols; i < cells.length - numCols; i += numCols) {
+                        const taskID = cells[i + taskIDIdx];
+                        const sourceName = cells[i + sourceIdx];
+                        const targetName = cells[i + targetIdx];
+
+                        if (sourceName && targetName && sourceName.trim() && targetName.trim()) {
+                            data.push({
+                                taskID: taskID || 'N/A',
+                                sourceName: sourceName.trim(),
+                                targetName: targetName.trim()
+                            });
+                        }
+                    }
+
+                    return data;
+                } catch (e) {
+                    console.error('Erreur détaillée XLSX:', e);
+                    return [];
+                }
+            }
+
+            async readFile(file) {
+                const name = file.name.toLowerCase();
+
+                try {
+                    if (name.endsWith('.csv')) {
+                        const text = await file.text();
+                        return this.parseCSV(text);
+                    } else if (name.endsWith('.tsv')) {
+                        const text = await file.text();
+                        return this.parseTSV(text);
+                    } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+                        const buffer = await file.arrayBuffer();
+                        return this.parseXLSXSimple(buffer);
+                    }
+                } catch (e) {
+                    console.error('Erreur lecture fichier:', e);
+                }
+                return [];
+            }
+        }
+
+        // ============================================================
+        // APPLICATION PRINCIPALE
+        // ============================================================
+
+        const fileHandler = new FileHandler();
+        const brandMatcher = new BrandMatcher();
+        let uploadedFiles = [];
+        let allData = [];
+
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const progressSection = document.getElementById('progressSection');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const progressPercent = document.getElementById('progressPercent');
+        const statsGrid = document.getElementById('statsGrid');
+        const resultsSection = document.getElementById('resultsSection');
+        const copyBtn = document.getElementById('copyBtn');
+
+        // Gestion du drag & drop
+        uploadZone.addEventListener('click', () => fileInput.click());
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        uploadZone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            await handleFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+        async function handleFiles(files) {
+            uploadedFiles = Array.from(files);
+            allData = [];
+
+            const promises = uploadedFiles.map(file => fileHandler.readFile(file));
+            const results = await Promise.all(promises);
+            
+            allData = results.flat();
+
+            updateFileList();
+            analyzeBtn.disabled = allData.length === 0;
+        }
+
+        function updateFileList() {
+            fileList.innerHTML = uploadedFiles.map(file => `
+                <div class="file-item">
+                    <span class="name">${file.name}</span>
+                    <span class="size">${(file.size / 1024).toFixed(1)} KB</span>
+                    <button class="remove-btn" onclick="removeFile('${file.name}')">✕</button>
+                </div>
+            `).join('');
+        }
+
+        window.removeFile = (name) => {
+            uploadedFiles = uploadedFiles.filter(f => f.name !== name);
+            updateFileList();
+            analyzeBtn.disabled = uploadedFiles.length === 0;
+        };
+
+        clearBtn.addEventListener('click', () => {
+            uploadedFiles = [];
+            allData = [];
+            fileInput.value = '';
+            fileList.innerHTML = '';
+            analyzeBtn.disabled = true;
+            progressSection.classList.remove('active');
+            statsGrid.style.display = 'none';
+            resultsSection.classList.remove('active');
+        });
+
+        // Normalisation des données
+        function normalizeData(rawData) {
+            return rawData.map(row => ({
+                taskID: row.taskID || row.taskid || 'N/A',
+                brand1: row.sourceName || row.source_name || row.brand1 || '',
+                brand2: row.targetName || row.target_name || row.brand2 || ''
+            })).filter(r => r.brand1 && r.brand2);
+        }
+
+        // Analyse
+        analyzeBtn.addEventListener('click', async () => {
+            analyzeBtn.disabled = true;
+            progressSection.classList.add('active');
+            statsGrid.style.display = 'grid';
+            resultsSection.classList.remove('active');
+
+            const normalizedData = normalizeData(allData);
+            const totalPairs = normalizedData.length;
+
+            // Simulation de progression
+            for (let i = 0; i <= 100; i++) {
+                await new Promise(resolve => setTimeout(resolve, 10));
+                updateProgress(i, totalPairs);
+            }
+
+            // Analyse réelle
+            const results = brandMatcher.analyzeDataset(normalizedData);
+
+            // Mise à jour des stats
+            document.getElementById('statIdentical').textContent = results.identical.length;
+            document.getElementById('statSimilar').textContent = results.similar.length;
+            document.getElementById('statDuplicate').textContent = results.duplicate.length;
+            document.getElementById('statDifferent').textContent = results.different.length;
+
+            // Affichage des résultats
+            displayResults(results, normalizedData);
+            resultsSection.classList.add('active');
+            analyzeBtn.disabled = false;
+        });
+
+        function updateProgress(percent, total) {
+            progressBar.style.width = percent + '%';
+            progressPercent.textContent = percent + '%';
+            progressText.textContent = `Analyse en cours...`;
+        }
+
+        function displayResults(results, rawData) {
+            // Résumé
+            const summary = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                    <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);">
+                        <div style="font-size: 0.8em; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 5px;">Total analysé</div>
+                        <div style="font-size: 2em; font-weight: 700; color: var(--text);">${rawData.length}</div>
+                    </div>
+                    <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; border-left: 4px solid var(--success);">
+                        <div style="font-size: 0.8em; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 5px;">Identiques</div>
+                        <div style="font-size: 2em; font-weight: 700; color: var(--success);">${results.identical.length}</div>
+                    </div>
+                    <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary-light);">
+                        <div style="font-size: 0.8em; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 5px;">Similaires</div>
+                        <div style="font-size: 2em; font-weight: 700; color: var(--primary-light);">${results.similar.length}</div>
+                    </div>
+                    <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; border-left: 4px solid var(--warning);">
+                        <div style="font-size: 0.8em; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 5px;">Doublons</div>
+                        <div style="font-size: 2em; font-weight: 700; color: var(--warning);">${results.duplicate.length}</div>
+                    </div>
+                    <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; border-left: 4px solid var(--danger);">
+                        <div style="font-size: 0.8em; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 5px;">Différents</div>
+                        <div style="font-size: 2em; font-weight: 700; color: var(--danger);">${results.different.length}</div>
+                    </div>
+                    <div style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);">
+                        <div style="font-size: 0.8em; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 5px;">Taux anomalies</div>
+                        <div style="font-size: 2em; font-weight: 700; color: var(--primary-light);">${((results.identical.length + results.similar.length + results.duplicate.length) / rawData.length * 100).toFixed(1)}%</div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('summaryContent').innerHTML = summary;
+
+            // Détails par catégorie
+            displayCategory('identical', results.identical);
+            displayCategory('similar', results.similar);
+            displayCategory('duplicate', results.duplicate);
+            displayCategory('different', results.different);
+        }
+
+        function displayCategory(category, items) {
+            if (items.length === 0) {
+                document.getElementById(category + 'Content').innerHTML = '<p style="color: #94a3b8; padding: 20px;">Aucun résultat</p>';
+                return;
+            }
+
+            let html = `
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 25%;">Task ID</th>
+                            <th style="width: 25%;">Source Name</th>
+                            <th style="width: 25%;">Target Name</th>
+                            <th style="width: 25%; text-align: center;">Similarité</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            items.forEach(item => {
+                html += `
+                    <tr>
+                        <td class="task-id" title="${escapeHtml(item.taskID)}">${escapeHtml(item.taskID)}</td>
+                        <td class="brand-cell">${escapeHtml(item.brand1)}</td>
+                        <td class="brand-cell">${escapeHtml(item.brand2)}</td>
+                        <td class="similarity-score ${item.category}">${item.similarity}%</td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                    </tbody>
+                </table>
+            `;
+            
+            document.getElementById(category + 'Content').innerHTML = html;
+        }
+
+        // Fonction pour échapper les caractères HTML
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // Conversion des résultats en format TSV
+        function convertToTSV(results) {
+            let tsv = 'Category\ttaskID\tsourceName\ttargetName\tSimilarity (%)\n';
+            
+            // Ajouter tous les résultats dans l'ordre
+            const allResults = [
+                ...results.identical.map(r => ({ ...r, category: 'Identique' })),
+                ...results.similar.map(r => ({ ...r, category: 'Similaire' })),
+                ...results.duplicate.map(r => ({ ...r, category: 'Doublon' })),
+                ...results.different.map(r => ({ ...r, category: 'Différent' }))
+            ];
+
+            allResults.forEach(item => {
+                // Échapper les caractères spéciaux pour TSV
+                const taskID = String(item.taskID).replace(/\t/g, '\\t').replace(/\n/g, '\\n');
+                const brand1 = String(item.brand1).replace(/\t/g, '\\t').replace(/\n/g, '\\n');
+                const brand2 = String(item.brand2).replace(/\t/g, '\\t').replace(/\n/g, '\\n');
+                const similarity = String(item.similarity);
+                
+                tsv += `${item.category}\t${taskID}\t${brand1}\t${brand2}\t${similarity}\n`;
+            });
+
+            return tsv;
+        }
+
+        // Copie des résultats en TSV
+        copyBtn.addEventListener('click', () => {
+            const tsvText = convertToTSV(brandMatcher.results);
+            navigator.clipboard.writeText(tsvText).then(() => {
+                copyBtn.textContent = '✓ Copié en TSV!';
+                setTimeout(() => {
+                    copyBtn.innerHTML = '📋 Copier les résultats';
+                }, 2000);
+            }).catch(err => {
+                console.error('Erreur copie:', err);
+                // Fallback: copie manuelle
+                const textarea = document.createElement('textarea');
+                textarea.value = tsvText;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                copyBtn.textContent = '✓ Copié!';
+                setTimeout(() => {
+                    copyBtn.innerHTML = '📋 Copier les résultats';
+                }, 2000);
+            });
+        });
+
+        // Gestion des onglets
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                btn.classList.add('active');
+                document.getElementById(btn.dataset.tab).classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>
